@@ -1,10 +1,10 @@
-import { useContext } from "react";
+// src/components/Navbar.jsx
+import React, { useContext } from "react";
 import { ThemeContext } from "../theme.jsx";
 import { AuthContext } from "../AuthContext.jsx";
 import { logout } from "../firebase";
 
-// DÙNG DEFAULT EXPORT
-export default function Navbar() {
+function Navbar() {
   const { theme, toggleTheme } = useContext(ThemeContext);
   const { user, isAdmin } = useContext(AuthContext);
 
@@ -17,19 +17,16 @@ export default function Navbar() {
         </div>
 
         <div className="flex gap-2 items-center">
-          {/* Chỉ admin mới thấy nút Admin tools */}
           {isAdmin && (
             <a className="btn outline" href="/admin-tools">
               Admin tools
             </a>
           )}
 
-          {/* Đổi theme */}
           <button className="btn outline" onClick={toggleTheme}>
             {theme === "light" ? "Dark" : "Light"}
           </button>
 
-          {/* Logout khi đã đăng nhập */}
           {user && (
             <button className="btn outline" onClick={logout}>
               Logout
@@ -40,3 +37,5 @@ export default function Navbar() {
     </header>
   );
 }
+
+export default Navbar;
