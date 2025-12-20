@@ -59,7 +59,7 @@ export function LoginPage() {
         <div className="max-w">
           <p>Bạn đã đăng nhập.</p>
           <p>
-            <Link to="/dashboard">Về trang chính</Link>
+            <Link to="/dashboard">Về trang chính </Link>
           </p>
         </div>
       </main>
