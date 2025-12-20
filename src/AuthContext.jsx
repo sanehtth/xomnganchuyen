@@ -1,82 +1,45 @@
-import { createContext, useEffect, useState, useContext } from "react";
-import { auth, db } from "./firebase";
-import { ref, get } from "firebase/database";
+import { createContext, useContext, useEffect, useState } from "react";
+import { auth } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { ensureUserProfile, listenUser } from "../firebase";
 
-export const AuthContext = createContext({
-  user: null,
-  loading: true,
-  isAdmin: false,
-  memberStatus: "none", // none | pending | approved
-  role: "guest",        // guest | member | associate
-});
-
-const ADMIN_EMAILS = [
-  "sane.htth@gmail.com",
-  // nếu sau này có thêm admin thì thêm email vào đây
-];
+const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [dbUser, setDbUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [memberStatus, setMemberStatus] = useState("none");
-  const [role, setRole] = useState("guest");
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (u) => {
-      setUser(u);
 
-      if (u) {
-        // Xác định admin theo email
-        const admin = ADMIN_EMAILS.includes(u.email || "");
-        setIsAdmin(admin);
-
-        // CHỈ ĐỌC dữ liệu user từ Realtime Database
-        try {
-          const userRef = ref(db, `users/${u.uid}`);
-          const snap = await get(userRef);
-          const data = snap.exists() ? snap.val() : {};
-
-          const dbRole = data.role || "guest";
-          const dbStatus = data.status || "none";
-
-          setRole(dbRole);
-          setMemberStatus(dbStatus);
-        } catch (err) {
-          console.error("Lỗi khi đọc user record:", err);
-          // Nếu đọc DB lỗi thì vẫn cho login, nhưng coi như guest chưa gửi yêu cầu
-          setRole("guest");
-          setMemberStatus("none");
-        }
-      } else {
-        // Không có user (đã logout)
-        setIsAdmin(false);
-        setRole("guest");
-        setMemberStatus("none");
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u) {
+        setUser(null);
+        setDbUser(null);
+        setLoading(false);
+        return;
       }
+
+      setUser(u);
+      await ensureUserProfile(u);
+
+      const stop = listenUser(u.uid, (v) => {
+        setDbUser(v);
+      });
 
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        isAdmin,
-        memberStatus,
-        role,
-      }}
-    >
+    <AuthContext.Provider value={{ user, dbUser, loading }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Hook tiện dùng
 export function useAuth() {
   return useContext(AuthContext);
 }
