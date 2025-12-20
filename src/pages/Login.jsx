@@ -1,33 +1,67 @@
 import { useContext } from "react";
 import { AuthContext } from "../AuthContext.jsx";
-import { loginWithGoogle } from "../firebase";
+import { auth } from "../firebase";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { Link } from "react-router-dom";
+
+const provider = new GoogleAuthProvider();
 
 export function LoginPage() {
-  const { loading, user } = useContext(AuthContext);
+  const { user, loading } = useContext(AuthContext);
 
-  async function handleLogin() {
+  const handleLogin = async () => {
+    // đã đăng nhập rồi thì không gọi lại
+    if (user) return;
+
     try {
-      await loginWithGoogle();
-    } catch (e) {
-      console.error(e);
-      alert("Login thất bại. Kiểm tra console.");
+      await signInWithPopup(auth, provider);
+      // thành công: AuthContext sẽ tự cập nhật user, không cần alert gì
+    } catch (err) {
+      console.error("Login error:", err);
+
+      // Một số lỗi không cần báo cho user (bị chặn popup, đóng popup, request trùng)
+      if (
+        err.code === "auth/popup-closed-by-user" ||
+        err.code === "auth/cancelled-popup-request" ||
+        err.code === "auth/popup-blocked-by-browser"
+      ) {
+        return;
+      }
+
+      alert("Có lỗi khi đăng nhập. Bạn hãy thử lại sau.");
     }
+  };
+
+  if (loading) {
+    return (
+      <main className="app-shell">
+        <div className="max-w">Đang kiểm tra trạng thái đăng nhập...</div>
+      </main>
+    );
   }
 
-  if (loading) return <div className="max-w">Đang tải...</div>;
-  if (user) return (
-    <div className="max-w">
-      <p>Bạn đã đăng nhập.</p>
-      <a href="/">Về trang chính</a>
-    </div>
-  );
+  // Nếu đã đăng nhập rồi thì chỉ cho quay về Dashboard, không hiển thị nút login nữa
+  if (user) {
+    return (
+      <main className="app-shell">
+        <div className="max-w">
+          <p>Bạn đã đăng nhập.</p>
+          <p>
+            <Link to="/dashboard">Về trang chính</Link>
+          </p>
+        </div>
+      </main>
+    );
+  }
 
+  // Chưa đăng nhập → hiển thị nút login
   return (
     <main className="app-shell">
       <div className="max-w">
         <h1>Đăng nhập Fanpage</h1>
-        <p className="mt-2">Dùng Google để vào hệ thống fan & admin.</p>
-        <button className="btn mt-3" onClick={handleLogin}>
+        <p>Dùng Google để vào hệ thống fan &amp; admin.</p>
+
+        <button className="btn primary mt-3" onClick={handleLogin}>
           Đăng nhập với Google
         </button>
       </div>
