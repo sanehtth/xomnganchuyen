@@ -1,65 +1,50 @@
-import { useContext } from "react";
-import { Link } from "react-router-dom";
-import { AuthContext } from "../AuthContext.jsx";
+import React, { useEffect, useState } from "react";
+import { database } from "../firebase";
+import { ref, get } from "firebase/database";
+import { useAuth } from "../AuthContext";
 
 export default function Dashboard() {
-  const { user, loading, isAdmin } = useContext(AuthContext);
+  const { user } = useAuth();
+  const [info, setInfo] = useState(null);
 
-  if (loading) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">Đang tải dữ liệu...</div>
-      </main>
-    );
-  }
+  useEffect(() => {
+    if (!user) return;
+    const r = ref(database, `users/${user.uid}`);
+    get(r).then(snap => {
+      if (snap.exists()) setInfo(snap.val());
+    });
+  }, [user]);
 
-  if (!user) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">
-          <p>Bạn chưa đăng nhập.</p>
-          <p>
-            <Link to="/login" className="btn">
-              Về trang đăng nhập
-            </Link>
-          </p>
-        </div>
-      </main>
-    );
-  }
+  if (!user) return <h1>Vui lòng đăng nhập.</h1>;
+  if (!info) return <h1>Đang tải thông tin ...</h1>;
 
   return (
-    <main className="app-shell">
-      <div className="max-w">
-        <h1>Xin chào, {user.displayName || "bạn"}</h1>
+    <div style={{ padding: 20 }}>
+      <h1>Dashboard</h1>
 
-        <div className="card mt-3">
-          <div className="card-header">Thông tin cơ bản</div>
-          <div className="card-body">
-            <p>
-              <strong>Email:</strong> {user.email}
-            </p>
-            <p>
-              <strong>UID:</strong> {user.uid}
-            </p>
-            <p>
-              <strong>Vai trò:</strong> {isAdmin ? "Admin" : "Thành viên"}
-            </p>
-            <p style={{ fontSize: 13, opacity: 0.8 }}>
-              (Level / XP / Coin sẽ hiển thị sau khi kết nối Realtime Database cho
-              profile chi tiết.)
-            </p>
-          </div>
-        </div>
+      <h3>Email:</h3>
+      <p>{info.email}</p>
 
-        {isAdmin && (
-          <div className="mt-3">
-            <Link to="/admin/users" className="btn">
-              Mở trang quản lý user
-            </Link>
-          </div>
-        )}
-      </div>
-    </main>
+      {info.role === "member" && (
+        <>
+          <h3>ID Thành viên:</h3>
+          <p style={{
+            fontWeight: "bold",
+            fontSize: "26px",
+            letterSpacing: "3px"
+          }}>
+            {info.memberId}
+          </p>
+        </>
+      )}
+
+      {info.role === "pending" && (
+        <p>VIP status: Pending...</p>
+      )}
+
+      {info.role === "guest" && (
+        <p>Bạn chưa gửi yêu cầu VIP.</p>
+      )}
+    </div>
   );
 }
