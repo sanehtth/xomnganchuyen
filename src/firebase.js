@@ -1,10 +1,13 @@
 ﻿// src/firebase.js
+// File này chỉ lo kết nối Firebase + mấy hàm helper dùng chung toàn app.
+
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
+  onAuthStateChanged,
 } from "firebase/auth";
 import {
   getFirestore,
@@ -12,9 +15,15 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  serverTimestamp,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  limit,
 } from "firebase/firestore";
 
-// CẤU HÌNH FIREBASE CỦA BẠN
+// TODO: điền config của bạn vào đây
 const firebaseConfig = {
   apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
   authDomain: "xomnganchuyen.firebaseapp.com",
@@ -22,124 +31,145 @@ const firebaseConfig = {
   storageBucket: "xomnganchuyen.firebasestorage.app",
   messagingSenderId: "335661705640",
   appId: "1:335661705640:web:8bde062fae1fcb3c99559d",
-  measurementId: "G-21JSZ5G1EX",
+  measurementId: "G-21JSZ5G1EX"
 };
 
-// KHỞI TẠO
 const app = initializeApp(firebaseConfig);
 
-// Auth + Firestore
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
-export const firestore = getFirestore(app);
 
-// DANH SÁCH ADMIN (email) – sửa theo ý bạn
-const ADMIN_EMAILS = ["sane.htth@gmail.com"];
+/**
+ * Tạo user trong Firestore nếu chưa có.
+ * Dùng khi user login lần đầu.
+ */
+export async function ensureUserProfile(firebaseUser) {
+  if (!firebaseUser) return null;
 
-// MẶC ĐỊNH stats / traits / metrics
-function defaultStats() {
-  return { coin: 0, xp: 0, level: 1 };
-}
+  const ref = doc(db, "users", firebaseUser.uid);
+  const snap = await getDoc(ref);
 
-function defaultTraits() {
-  return {
-    competitiveness: 0,
-    creativity: 0,
-    perfectionism: 0,
-    playfulness: 0,
-    self_improvement: 0,
-    sociability: 0,
-  };
-}
+  if (!snap.exists()) {
+    const payload = {
+      uid: firebaseUser.uid,
+      displayName: firebaseUser.displayName || "",
+      email: firebaseUser.email || "",
+      photoURL: firebaseUser.photoURL || "",
+      role: "guest",           // mặc định mọi người là guest
+      status: "none",          // chưa gửi yêu cầu VIP
+      joinCode: "",
 
-function defaultMetrics() {
-  return { fi: 0, pi: 0, pi_star: 0 };
-}
+      coin: 0,
+      xp: 0,
+      level: 1,
 
-// TÍNH LEVEL TỪ XP (bạn muốn chỉnh logic thì đổi ở đây)
-export function calculateLevelFromXp(totalXp) {
-  const base = Math.floor((totalXp || 0) / 100) + 1;
-  return base < 1 ? 1 : base;
-}
+      traits: {
+        competitiveness: 0,
+        creativity: 0,
+        perfectionism: 0,
+        playfulness: 0,
+        selfImprovement: 0,
+        sociability: 0,
+      },
 
-// TẠO USER DOC CƠ BẢN TỪ FirebaseUser
-function buildBaseUserDoc(firebaseUser) {
-  const email = firebaseUser.email || "";
-  const displayName =
-    firebaseUser.displayName ||
-    (email ? email.split("@")[0] : "No name");
+      weekly: {
+        weekStart: null,
+        xp: 0,
+        coin: 0,
+        activityScore: 0,
+      },
 
-  const now = Date.now();
+      theme: "light",
 
-  return {
-    uid: firebaseUser.uid,
-    email,
-    displayName,
-    photoURL: firebaseUser.photoURL || "",
-    createdAt: now,
-    lastActiveAt: now,
+      createdAt: serverTimestamp(),
+      lastActiveAt: serverTimestamp(),
+    };
 
-    // Mặc định cho user mới
-    role: ADMIN_EMAILS.includes(email) ? "admin" : "guest",
-    status: ADMIN_EMAILS.includes(email) ? "approved" : "none", // none = chưa gửi yêu cầu
-    joinCode: "",
-
-    stats: defaultStats(),
-    traits: defaultTraits(),
-    metrics: defaultMetrics(),
-
-    flags: {
-      quizDone: false,
-      quizEng: false,
-    },
-  };
+    await setDoc(ref, payload);
+    return payload;
+  } else {
+    const data = snap.data();
+    // cập nhật lastActiveAt mỗi lần load
+    await updateDoc(ref, { lastActiveAt: serverTimestamp() });
+    return { uid: firebaseUser.uid, ...data };
+  }
 }
 
 /**
- * Đảm bảo user có document trong Firestore:
- * - Nếu CHƯA có: tạo mới với dữ liệu mặc định.
- * - Nếu ĐÃ có: chỉ update email, displayName, photoURL, lastActiveAt.
- *   KHÔNG ghi đè role / status / joinCode / stats / traits / metrics.
+ * Đăng nhập bằng Google
+ * Trả về { firebaseUser, profile }
  */
-export async function ensureUserDoc(firebaseUser) {
-  if (!firebaseUser) return null;
-
-  const uid = firebaseUser.uid;
-  const userRef = doc(firestore, "users", uid);
-  const snap = await getDoc(userRef);
-
-  const baseDoc = buildBaseUserDoc(firebaseUser);
-
-  if (!snap.exists()) {
-    await setDoc(userRef, baseDoc);
-    return baseDoc;
-  }
-
-  const current = snap.data() || {};
-  const updatePayload = {
-    email: baseDoc.email,
-    displayName: baseDoc.displayName,
-    photoURL: baseDoc.photoURL,
-    lastActiveAt: Date.now(),
-  };
-
-  await updateDoc(userRef, updatePayload);
-
-  return {
-    ...current,
-    ...updatePayload,
-  };
-}
-
-// ĐĂNG NHẬP GOOGLE
 export async function loginWithGoogle() {
   const res = await signInWithPopup(auth, googleProvider);
-  const user = res.user;
-  await ensureUserDoc(user);
-  return user;
+  const firebaseUser = res.user;
+  const profile = await ensureUserProfile(firebaseUser);
+  return { firebaseUser, profile };
 }
 
-// ĐĂNG XUẤT
-export async function logout() {
-  await signOut(auth);
+/**
+ * Đăng xuất
+ */
+export function logoutFirebase() {
+  return signOut(auth);
+}
+
+/**
+ * Lấy toàn bộ user (dùng cho trang AdminUsers)
+ */
+export async function fetchAllUsers(limitNumber = 200) {
+  const q = query(
+    collection(db, "users"),
+    orderBy("createdAt", "desc"),
+    limit(limitNumber)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Approve user thành member + tạo joinCode
+ */
+export async function approveUser(uid, joinCode) {
+  const ref = doc(db, "users", uid);
+  await updateDoc(ref, {
+    role: "member",
+    status: "approved",
+    joinCode: joinCode,
+  });
+}
+
+/**
+ * Chuyển trạng thái user về pending (gửi yêu cầu VIP)
+ */
+export async function requestVip(uid, joinCode) {
+  const ref = doc(db, "users", uid);
+  await updateDoc(ref, {
+    status: "pending",
+    joinCode: joinCode,
+  });
+}
+
+/**
+ * Set role bất kỳ cho user (admin sẽ dùng cái này)
+ * role: "guest" | "member" | "contributor" | "admin"
+ */
+export async function setUserRole(uid, role) {
+  const ref = doc(db, "users", uid);
+  await updateDoc(ref, { role });
+}
+
+/**
+ * Đổi theme cho user và lưu Firestore
+ */
+export async function updateUserTheme(uid, theme) {
+  const ref = doc(db, "users", uid);
+  await updateDoc(ref, { theme });
+}
+
+/**
+ * Lắng nghe auth state (dùng trong AuthContext)
+ */
+export function onAuthChange(callback) {
+  return onAuthStateChanged(auth, callback);
 }

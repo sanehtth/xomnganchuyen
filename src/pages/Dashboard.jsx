@@ -1,95 +1,52 @@
 ﻿// src/pages/Dashboard.jsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useAuth } from "../AuthContext";
-import { firestore } from "../firebase";
-import { doc, getDoc } from "firebase/firestore";
 
-export default function Dashboard() {
-  const { user, loading } = useAuth();
-  const [profile, setProfile] = useState(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
+function Dashboard() {
+  const { firebaseUser, profile, theme, setTheme } = useAuth();
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!user) {
-        setProfile(null);
-        setLoadingProfile(false);
-        return;
-      }
-
-      setLoadingProfile(true);
-      const ref = doc(firestore, "users", user.uid);
-      const snap = await getDoc(ref);
-      if (snap.exists()) setProfile(snap.data());
-      else setProfile(null);
-      setLoadingProfile(false);
-    };
-
-    fetchProfile();
-  }, [user]);
-
-  if (loading || loadingProfile) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">
-          <p>Đang tải...</p>
-        </div>
-      </main>
-    );
+  if (!firebaseUser) {
+    return <div>Bạn cần đăng nhập trước.</div>;
   }
 
-  if (!user || !profile) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">
-          <p>Bạn chưa đăng nhập.</p>
-        </div>
-      </main>
-    );
-  }
-
-  const role = profile.role || "guest";
-  const status = profile.status || "none";
+  const isGuest = profile?.role === "guest";
+  const isPending = profile?.status === "pending";
 
   return (
-    <main className="app-shell">
-      <div className="max-w">
-        <h1>Xin chào, {profile.displayName || user.email}</h1>
+    <div style={{ padding: 40 }}>
+      <h1>Fanpage Lab (beta)</h1>
 
-        <p>Email: {profile.email || user.email}</p>
-        <p>Role: {role}</p>
-        <p>Trạng thái: {status}</p>
+      <h2>Xin chào, {profile?.displayName || firebaseUser.email}</h2>
+      <p>Email: {firebaseUser.email}</p>
+      <p>Role: {profile?.role}</p>
+      <p>Status: {profile?.status}</p>
 
-        {role === "member" && status === "approved" && (
-          <>
-            <h3>ID thành viên</h3>
-            <p
-              style={{
-                fontWeight: "bold",
-                fontSize: "26px",
-                letterSpacing: "3px",
-              }}
-            >
-              {profile.joinCode || "(chưa có ID)"}
-            </p>
+      <h3>Chỉ số công khai</h3>
+      <ul>
+        <li>XP: {profile?.xp ?? 0}</li>
+        <li>Coin: {profile?.coin ?? 0}</li>
+        <li>Level: {profile?.level ?? 1}</li>
+      </ul>
 
-            <h3>Chỉ số công khai</h3>
-            <ul>
-              <li>XP: {profile.stats?.xp ?? 0}</li>
-              <li>Coin: {profile.stats?.coin ?? 0}</li>
-              <li>Level: {profile.stats?.level ?? 1}</li>
-            </ul>
-          </>
-        )}
+      {isGuest && !isPending && (
+        <p>
+          Bạn đang là guest. Vào trang{" "}
+          <a href="/join">Cổng đăng ký VIP</a> để gửi yêu cầu.
+        </p>
+      )}
 
-        {role === "guest" && status === "none" && (
-          <p>Bạn chưa gửi yêu cầu VIP. Vào trang Đăng ký VIP để gửi yêu cầu.</p>
-        )}
+      {isPending && (
+        <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
+      )}
 
-        {status === "pending" && (
-          <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
-        )}
+      <div style={{ marginTop: 20 }}>
+        <span>Theme hiện tại: {theme}</span>{" "}
+        <button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+          Đổi theme
+        </button>
       </div>
-    </main>
+    </div>
   );
 }
+
+export default Dashboard;

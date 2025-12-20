@@ -1,69 +1,51 @@
 ﻿// src/pages/Login.jsx
-import React, { useContext, useEffect, useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
-import { loginWithGoogle } from "../firebase";
-import { AuthContext } from "../AuthContext";
+import { useAuth } from "../AuthContext";
 
-export default function LoginPage() {
-  const { user, loading } = useContext(AuthContext);
-  const [loggingIn, setLoggingIn] = useState(false);
+function LoginPage() {
+  const { firebaseUser, profile, loginWithGoogle, theme, setTheme } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!loading && user) {
-      navigate("/dashboard");
-    }
-  }, [user, loading, navigate]);
-
   const handleLogin = async () => {
-    try {
-      setLoggingIn(true);
-      await loginWithGoogle();
-      // AuthContext sẽ tự cập nhật user + profile
-    } catch (err) {
-      console.error(err);
-      alert("Có lỗi khi đăng nhập. Vui lòng thử lại.");
-      setLoggingIn(false);
+    await loginWithGoogle();
+
+    // Logic điều hướng sau khi login
+    if (profile?.role === "admin") {
+      navigate("/admin/users");
+    } else if (profile?.role === "member" || profile?.role === "contributor") {
+      navigate("/dashboard");
+    } else {
+      // guest
+      navigate("/join");
     }
   };
 
-  if (loading) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">
-          <p>Đang kiểm tra trạng thái đăng nhập...</p>
-        </div>
-      </main>
-    );
-  }
-
-  if (user) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">
-          <h1>Đăng nhập Fanpage</h1>
-          <p>Bạn đã đăng nhập.</p>
-          <button className="btn" onClick={() => navigate("/dashboard")}>
-            Về Dashboard
-          </button>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="app-shell">
-      <div className="max-w">
-        <h1>Đăng nhập Fanpage</h1>
-        <p>Bấm nút dưới để đăng nhập bằng Google.</p>
-        <button
-          className="btn primary"
-          onClick={handleLogin}
-          disabled={loggingIn}
-        >
-          {loggingIn ? "Đang đăng nhập..." : "Đăng nhập với Google"}
+    <div style={{ padding: 40 }}>
+      <h1>Fanpage Lab</h1>
+
+      <p>Đăng nhập để vào hệ thống tuyển người & đào tạo.</p>
+
+      <button onClick={handleLogin}>Đăng nhập với Google</button>
+
+      <div style={{ marginTop: 20 }}>
+        <span>Theme hiện tại: {theme}</span>{" "}
+        <button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+          Đổi theme
         </button>
       </div>
-    </main>
+
+      {firebaseUser && (
+        <div style={{ marginTop: 20 }}>
+          <div>Đang đăng nhập: {firebaseUser.email}</div>
+          <button onClick={() => navigate("/dashboard")}>
+            Vào dashboard
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
+
+export default LoginPage;

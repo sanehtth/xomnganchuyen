@@ -1,86 +1,108 @@
 ﻿// src/AuthContext.jsx
+import React, { createContext, useContext, useEffect, useState } from "react";
 import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth, ensureUserDoc } from "./firebase";
-import { firestore } from "./firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+  auth,
+  onAuthChange,
+  loginWithGoogle,
+  logoutFirebase,
+  ensureUserProfile,
+  updateUserTheme,
+} from "./firebase";
 
-export const AuthContext = createContext({
-  user: null,
-  loading: true,
-  isAdmin: false,
-  profile: null,
-  role: "guest",
-  status: "none",
-});
-
-const ADMIN_EMAILS = ["sane.htth@gmail.com"];
-
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    // Lắng nghe trạng thái login
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true);
-
-      if (!firebaseUser) {
-        setUser(null);
-        setProfile(null);
-        setIsAdmin(false);
-        setLoading(false);
-        return;
-      }
-
-      setUser(firebaseUser);
-      setIsAdmin(ADMIN_EMAILS.includes(firebaseUser.email || ""));
-
-      // Đảm bảo doc tồn tại
-      const ensured = await ensureUserDoc(firebaseUser);
-
-      // Lắng nghe realtime user doc từ Firestore
-      const userRef = doc(firestore, "users", firebaseUser.uid);
-      const unsubDoc = onSnapshot(userRef, (snap) => {
-        if (snap.exists()) {
-          setProfile(snap.data());
-        } else {
-          setProfile(ensured || null);
-        }
-      });
-
-      setLoading(false);
-
-      // cleanup khi logout
-      return () => {
-        unsubDoc();
-      };
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const value = {
-    user,
-    profile,
-    loading,
-    isAdmin,
-    role: profile?.role || "guest",
-    status: profile?.status || "none",
-  };
-
-  return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-  );
-}
+const AuthContext = createContext();
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+/**
+ * Ghi chú:
+ * - state chính: { firebaseUser, profile, loading, theme }
+ * - theme: vừa lưu ở localStorage, vừa lưu Firestore (nếu đã đăng nhập)
+ */
+export function AuthProvider({ children }) {
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [profile, setProfile] = useState(null); // dữ liệu trong collection users
+  const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState(
+    () => window.localStorage.getItem("theme") || "light"
+  );
+
+  // Áp theme vào body
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+    window.localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  // Lắng nghe thay đổi đăng nhập
+  useEffect(() => {
+    const unsub = onAuthChange(async (user) => {
+      if (!user) {
+        setFirebaseUser(null);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+      setFirebaseUser(user);
+      const p = await ensureUserProfile(user);
+      setProfile(p);
+      if (p.theme) setTheme(p.theme);
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const handleLoginWithGoogle = async () => {
+    setLoading(true);
+    try {
+      const { firebaseUser: fu, profile: p } = await loginWithGoogle();
+      setFirebaseUser(fu);
+      setProfile(p);
+      if (p.theme) setTheme(p.theme);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      await logoutFirebase();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangeTheme = async (nextTheme) => {
+    setTheme(nextTheme);
+    if (firebaseUser) {
+      // nếu đã login thì lưu lên Firestore
+      try {
+        await updateUserTheme(firebaseUser.uid, nextTheme);
+      } catch (e) {
+        console.error("Update theme failed", e);
+      }
+    }
+  };
+
+  const value = {
+    firebaseUser,
+    profile,
+    loading,
+    theme,
+    loginWithGoogle: handleLoginWithGoogle,
+    logout: handleLogout,
+    setTheme: handleChangeTheme,
+    // tiện: flag check quyền
+    isAdmin: profile?.role === "admin",
+    isMember: profile?.role === "member",
+    isContributor: profile?.role === "contributor",
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
 }
