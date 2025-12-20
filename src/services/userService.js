@@ -4,8 +4,8 @@ import { db } from "../firebase";
 
 /**
  * Đảm bảo user có record trong Realtime Database.
- * - Nếu user CHƯA tồn tại: tạo mới với role = guest, status = pending.
- * - Nếu user ĐÃ tồn tại: chỉ cập nhật thông tin cơ bản (email, name, avatar, lastActive),
+ * - Nếu user CHƯA tồn tại: tạo mới với thông tin cơ bản (KHÔNG set role/status/joinCode).
+ * - Nếu user ĐÃ tồn tại: chỉ cập nhật thông tin cơ bản + lastActiveAt,
  *   KHÔNG ghi đè role / status / joinCode / level / coin / xp.
  */
 export async function ensureUserRecord(firebaseUser, isAdmin = false) {
@@ -14,9 +14,7 @@ export async function ensureUserRecord(firebaseUser, isAdmin = false) {
   const uid = firebaseUser.uid;
   const userRef = ref(db, `users/${uid}`);
 
-  const snap = await get(userRef);
-
-  // Dữ liệu cơ bản lấy từ Firebase Auth
+  // Thông tin cơ bản lấy từ Firebase Auth
   const baseProfile = {
     uid,
     email: firebaseUser.email || "",
@@ -26,7 +24,16 @@ export async function ensureUserRecord(firebaseUser, isAdmin = false) {
     photoURL: firebaseUser.photoURL || "",
   };
 
-  // Nếu user chưa có trong DB → tạo mới
+  let snap;
+  try {
+    snap = await get(userRef);
+  } catch (err) {
+    console.error("Lỗi đọc user record:", err);
+    // Nếu permission lỗi thì thôi, không ghi gì để tránh reset dữ liệu
+    return baseProfile;
+  }
+
+  // User CHƯA tồn tại -> tạo mới với thông tin cơ bản
   if (!snap.exists()) {
     const now = Date.now();
 
@@ -34,21 +41,14 @@ export async function ensureUserRecord(firebaseUser, isAdmin = false) {
       ...baseProfile,
       createdAt: now,
       lastActiveAt: now,
-
-      // mặc định cho user mới
-      role: "guest",
-      status: "pending",
-      level: 0,
-      xp: 0,
-      coin: 0,
-      joinCode: "", // sẽ được admin tạo sau
+      // KHÔNG đặt role/status/joinCode ở đây
     };
 
     await set(userRef, newUser);
     return newUser;
   }
 
-  // Nếu user đã tồn tại → chỉ update thông tin cơ bản + lastActiveAt
+  // User ĐÃ tồn tại -> CHỈ update thông tin cơ bản + lastActiveAt
   const current = snap.val() || {};
   const now = Date.now();
 
@@ -59,7 +59,7 @@ export async function ensureUserRecord(firebaseUser, isAdmin = false) {
 
   await update(userRef, updates);
 
-  // Trả về bản đã merge: ưu tiên data cũ (role, status, joinCode, ...)
+  // Giữ nguyên role/status/joinCode/... từ current
   return {
     ...current,
     ...updates,
