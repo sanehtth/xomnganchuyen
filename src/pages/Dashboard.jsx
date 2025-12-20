@@ -1,35 +1,39 @@
-// src/pages/Dashboard.jsx
-import React, { useEffect, useState, useContext } from "react";
-import { db } from "../firebase";
-import { ref, get } from "firebase/database";
+// src/pages/JoinGate.jsx
+import React, { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../AuthContext";
+import { db } from "../firebase";
+import { ref, get, update } from "firebase/database";
+import { useNavigate } from "react-router-dom";
 
-export default function Dashboard() {
+export default function JoinGate() {
   const { user, loading } = useContext(AuthContext);
-  const [info, setInfo] = useState(null);
-  const [fetching, setFetching] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
 
+  // Đọc thông tin user từ Realtime Database
   useEffect(() => {
     if (!user) {
-      setInfo(null);
-      setFetching(false);
+      setProfile(null);
+      setLoadingProfile(false);
       return;
     }
 
-    const r = ref(db, `users/${user.uid}`);
-    setFetching(true);
-    get(r)
+    const userRef = ref(db, `users/${user.uid}`);
+    setLoadingProfile(true);
+    get(userRef)
       .then((snap) => {
         if (snap.exists()) {
-          setInfo(snap.val());
+          setProfile(snap.val());
         } else {
-          setInfo(null);
+          setProfile(null);
         }
       })
-      .finally(() => setFetching(false));
+      .finally(() => setLoadingProfile(false));
   }, [user]);
 
-  if (loading || fetching) {
+  if (loading || loadingProfile) {
     return (
       <main className="app-shell">
         <div className="max-w">
@@ -43,41 +47,124 @@ export default function Dashboard() {
     return (
       <main className="app-shell">
         <div className="max-w">
-          <p>Bạn chưa đăng nhập.</p>
+          <p>Bạn cần đăng nhập trước.</p>
+          <button className="btn" onClick={() => navigate("/login")}>
+            Về trang đăng nhập
+          </button>
         </div>
       </main>
     );
   }
 
-  const role = info?.role || "guest";
-  const status = info?.status || "none";
-  const name = info?.displayName || user.displayName || user.email;
+  const role = profile?.role || "guest";          // guest | member | associate
+  const status = profile?.status || "none";       // none | pending | approved | rejected
+
+  const requestVIP = async () => {
+    if (!user) return;
+
+    // Nếu đã là member/associate thì không cho gửi nữa
+    if (role === "member" || role === "associate") {
+      alert("Bạn đã là thành viên rồi, không cần gửi yêu cầu nữa.");
+      return;
+    }
+
+    // Nếu đã gửi yêu cầu và đang pending thì không cho gửi lại
+    if (status === "pending") {
+      alert("Bạn đã gửi yêu cầu VIP, vui lòng chờ admin duyệt.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const userRef = ref(db, `users/${user.uid}`);
+
+      // CHỈ cập nhật status (và requestedAt), KHÔNG đụng role / joinCode / coin / level / ...
+      await update(userRef, {
+        status: "pending",
+        requestedAt: Date.now(),
+      });
+
+      setProfile((prev) => ({
+        ...(prev || {}),
+        status: "pending",
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("Có lỗi xảy ra khi gửi yêu cầu VIP. Bạn hãy thử lại sau.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <main className="app-shell">
       <div className="max-w">
-        <h1>Xin chào, {name}</h1>
+        <h1>Cổng đăng ký VIP</h1>
+        <p>Xin chào, {profile?.displayName || user.displayName || user.email}</p>
 
-        <p>Email: {info?.email || user.email}</p>
-        <p>Role: {role}</p>
-
-        {/* Hiển thị thông tin VIP */}
-        {role === "member" && status === "approved" && (
+        {/* Trường hợp đã là member/associate */}
+        {(role === "member" || role === "associate") && (
           <>
-            <p>Bạn là thành viên VIP.</p>
-            <p>
-              ID thành viên:{" "}
-              <strong>{info?.joinCode || "(chưa có ID)"}</strong>
-            </p>
+            {role === "member" && (
+              <>
+                <p>Bạn đã là VIP (Member).</p>
+                {profile?.joinCode && (
+                  <p>
+                    ID thành viên: <strong>{profile.joinCode}</strong>
+                  </p>
+                )}
+              </>
+            )}
+
+            {role === "associate" && (
+              <p>Bạn đang ở nhóm Cộng sự (Associate).</p>
+            )}
+
+            {status === "approved" && (
+              <p>Yêu cầu của bạn đã được admin duyệt.</p>
+            )}
+
+            {status === "pending" && (
+              <p>Trạng thái đang chờ duyệt (pending).</p>
+            )}
           </>
         )}
 
-        {status === "pending" && (
-          <p>Yêu cầu VIP đang chờ admin duyệt.</p>
-        )}
+        {/* Trường hợp vẫn là guest */}
+        {role === "guest" && (
+          <>
+            {status !== "pending" && (
+              <>
+                <p>
+                  Bước 1: Bấm vào link dưới để subscribe kênh Youtube của mình.
+                </p>
+                <a
+                  href="https://www.youtube.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn"
+                >
+                  Bấm để sub Youtube
+                </a>
 
-        {role === "guest" && status !== "pending" && (
-          <p>Bạn chưa gửi yêu cầu VIP.</p>
+                <br />
+                <br />
+
+                <p>Bước 2: Bấm nút dưới để gửi yêu cầu VIP:</p>
+                <button
+                  className="btn btn-primary"
+                  onClick={requestVIP}
+                  disabled={submitting}
+                >
+                  {submitting ? "Đang gửi yêu cầu..." : "Gửi yêu cầu VIP"}
+                </button>
+              </>
+            )}
+
+            {status === "pending" && (
+              <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
+            )}
+          </>
         )}
       </div>
     </main>
