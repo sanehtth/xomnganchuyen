@@ -6,30 +6,26 @@ import { Link, useNavigate } from "react-router-dom";
 
 const provider = new GoogleAuthProvider();
 
-export function LoginPage() {
+// DÙNG DEFAULT EXPORT
+export default function LoginPage() {
   const { user, loading, role } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
     if (user) return;
+
     try {
       await signInWithPopup(auth, provider);
-      
-      // Sau khi login thành công → AuthContext sẽ cập nhật "role"
-      // Ta redirect theo role:
 
+      // Sau khi login xong, AuthContext sẽ cập nhật user & role.
+      // Dùng role hiện tại để điều hướng.
       if (role === "guest") {
         return navigate("/join-gate");
       }
 
-      if (role === "member") {
+      if (role === "member" || role === "associate") {
         return navigate("/dashboard");
       }
-
-      if (role === "associate") {
-        return navigate("/dashboard");
-      }
-
     } catch (err) {
       console.error("Login error:", err);
 
@@ -59,7 +55,7 @@ export function LoginPage() {
         <div className="max-w">
           <p>Bạn đã đăng nhập.</p>
           <p>
-            <Link to="/dashboard">Về trang chính </Link>
+            <Link to="/dashboard">Về trang chính</Link>
           </p>
         </div>
       </main>
