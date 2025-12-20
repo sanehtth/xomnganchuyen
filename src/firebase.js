@@ -1,4 +1,4 @@
-// src/firebase.js
+﻿// src/firebase.js
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
@@ -7,117 +7,139 @@ import {
   signOut,
 } from "firebase/auth";
 import {
-  getDatabase,
-  ref,
-  set,
-  get,
-  update,
-  onValue,
-} from "firebase/database";
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 
-// ==== THÊM FIRESTORE VÀO ĐÂY ====
-import { getFirestore } from "firebase/firestore";
-
-// ===== CẤU HÌNH FIREBASE CỦA BẠN =====
+// CẤU HÌNH FIREBASE CỦA BẠN
 const firebaseConfig = {
   apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
   authDomain: "xomnganchuyen.firebaseapp.com",
-  databaseURL: "https://xomnganchuyen-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "xomnganchuyen",
   storageBucket: "xomnganchuyen.firebasestorage.app",
   messagingSenderId: "335661705640",
   appId: "1:335661705640:web:8bde062fae1fcb3c99559d",
+  measurementId: "G-21JSZ5G1EX",
 };
-// =====================================
 
-// Khởi tạo app
+// KHỞI TẠO
 const app = initializeApp(firebaseConfig);
 
-// Auth & DB
+// Auth + Firestore
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const db = getDatabase(app);
-
-// ==== THÊM DÒNG NÀY ====
-// Firestore dùng để quản lý user, trait, metrics, weekly...
 export const firestore = getFirestore(app);
 
+// DANH SÁCH ADMIN (email) – sửa theo ý bạn
+const ADMIN_EMAILS = ["sane.htth@gmail.com"];
 
-// Lắng nghe realtime 1 user theo uid (nếu sau này cần)
-export function listenUser(uid, cb) {
-  const userRef = ref(db, `users/${uid}`);
-  return onValue(userRef, (snap) => cb(snap.val()));
+// MẶC ĐỊNH stats / traits / metrics
+function defaultStats() {
+  return { coin: 0, xp: 0, level: 1 };
 }
 
-/**
- * Đảm bảo user có record trong Realtime Database.
- * - Nếu user CHƯA tồn tại: tạo mới với role = "guest", status = "none"
- * - Nếu user ĐÃ tồn tại: chỉ update thông tin cơ bản + lastActiveAt,
- *   KHÔNG đụng vào role/status/joinCode/level/coin/xp.
- */
-export async function ensureUserProfile(user) {
-  if (!user) return null;
-
-  const userRef = ref(db, `users/${user.uid}`);
-  const snap = await get(userRef);
-
-  const baseProfile = {
-    uid: user.uid,
-    email: user.email || "",
-    displayName:
-      user.displayName ||
-      (user.email ? user.email.split("@")[0] : "No name"),
-    photoURL: user.photoURL || "",
+function defaultTraits() {
+  return {
+    competitiveness: 0,
+    creativity: 0,
+    perfectionism: 0,
+    playfulness: 0,
+    self_improvement: 0,
+    sociability: 0,
   };
+}
+
+function defaultMetrics() {
+  return { fi: 0, pi: 0, pi_star: 0 };
+}
+
+// TÍNH LEVEL TỪ XP (bạn muốn chỉnh logic thì đổi ở đây)
+export function calculateLevelFromXp(totalXp) {
+  const base = Math.floor((totalXp || 0) / 100) + 1;
+  return base < 1 ? 1 : base;
+}
+
+// TẠO USER DOC CƠ BẢN TỪ FirebaseUser
+function buildBaseUserDoc(firebaseUser) {
+  const email = firebaseUser.email || "";
+  const displayName =
+    firebaseUser.displayName ||
+    (email ? email.split("@")[0] : "No name");
 
   const now = Date.now();
 
-  // User mới
-  if (!snap.exists()) {
-    const payload = {
-      ...baseProfile,
-      createdAt: now,
-      lastActiveAt: now,
-      role: "guest",   // cấp bậc: guest / member / associate
-      status: "none",  // trạng thái yêu cầu VIP: none / pending / approved
-      level: 1,
-      xp: 0,
-      coin: 0,
-      joinCode: "",
-    };
+  return {
+    uid: firebaseUser.uid,
+    email,
+    displayName,
+    photoURL: firebaseUser.photoURL || "",
+    createdAt: now,
+    lastActiveAt: now,
 
-    await set(userRef, payload);
-    return payload;
+    // Mặc định cho user mới
+    role: ADMIN_EMAILS.includes(email) ? "admin" : "guest",
+    status: ADMIN_EMAILS.includes(email) ? "approved" : "none", // none = chưa gửi yêu cầu
+    joinCode: "",
+
+    stats: defaultStats(),
+    traits: defaultTraits(),
+    metrics: defaultMetrics(),
+
+    flags: {
+      quizDone: false,
+      quizEng: false,
+    },
+  };
+}
+
+/**
+ * Đảm bảo user có document trong Firestore:
+ * - Nếu CHƯA có: tạo mới với dữ liệu mặc định.
+ * - Nếu ĐÃ có: chỉ update email, displayName, photoURL, lastActiveAt.
+ *   KHÔNG ghi đè role / status / joinCode / stats / traits / metrics.
+ */
+export async function ensureUserDoc(firebaseUser) {
+  if (!firebaseUser) return null;
+
+  const uid = firebaseUser.uid;
+  const userRef = doc(firestore, "users", uid);
+  const snap = await getDoc(userRef);
+
+  const baseDoc = buildBaseUserDoc(firebaseUser);
+
+  if (!snap.exists()) {
+    await setDoc(userRef, baseDoc);
+    return baseDoc;
   }
 
-  // User đã tồn tại -> không ghi đè quyền
-  const current = snap.val() || {};
-
-  const payload = {
-    ...baseProfile,
-    lastActiveAt: now,
+  const current = snap.data() || {};
+  const updatePayload = {
+    email: baseDoc.email,
+    displayName: baseDoc.displayName,
+    photoURL: baseDoc.photoURL,
+    lastActiveAt: Date.now(),
   };
 
-  await update(userRef, payload);
+  await updateDoc(userRef, updatePayload);
 
   return {
     ...current,
-    ...payload,
+    ...updatePayload,
   };
 }
 
-// Đăng nhập bằng Google
+// ĐĂNG NHẬP GOOGLE
 export async function loginWithGoogle() {
   const res = await signInWithPopup(auth, googleProvider);
   const user = res.user;
-
-  // tạo / cập nhật record trong DB nhưng không reset role/status
-  await ensureUserProfile(user);
-
+  await ensureUserDoc(user);
   return user;
 }
 
-// Đăng xuất
+// ĐĂNG XUẤT
 export async function logout() {
   await signOut(auth);
 }
