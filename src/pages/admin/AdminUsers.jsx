@@ -1,7 +1,7 @@
 // src/pages/admin/AdminUsers.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import { ref, onValue, update } from "firebase/database";
-import { database } from "../../firebase"; // CHÚ Ý: đường dẫn tới firebase.js
+import { db } from "../../firebase"; // CHÚ Ý: đường dẫn tới firebase.js
 
 const ROLE_FILTERS = [
   { value: "all", label: "Tất cả" },
@@ -254,3 +254,4 @@ function AdminUsers() {
 }
 
 export default AdminUsers;
+
