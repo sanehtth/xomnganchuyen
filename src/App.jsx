@@ -1,3 +1,4 @@
+// src/App.jsx
 import "./theme.css";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 
@@ -6,19 +7,26 @@ import { LoginPage } from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import JoinGate from "./pages/JoinGate.jsx";
 import AdminUsers from "./pages/admin/AdminUsers.jsx";
-
+import AdminPanel from "./pages/AdminPanel.jsx";
 
 function Home() {
   return (
     <main className="app-shell">
       <div className="max-w">
         <h1>Fanpage Core System</h1>
-        <p className="mt-2">
-          Welcome...
+        <p>
+          Đây là bản nền: đăng nhập, quản lý user cơ bản và khu admin để bạn
+          gắn thêm tool (video, quiz, nhiệm vụ, vinh danh...).
         </p>
-        <div className="mt-3 flex gap-2">
-          <Link className="btn" to="/login">Đăng nhập</Link>
-          <Link className="btn outline" to="/dashboard">Dashboard</Link>
+
+        <div className="mt-2">
+          <Link to="/login" className="btn">
+            Đăng nhập
+          </Link>
+          <span style={{ marginLeft: 8 }} />
+          <Link to="/dashboard" className="btn outline">
+            Vào Dashboard
+          </Link>
         </div>
       </div>
     </main>
@@ -28,20 +36,35 @@ function Home() {
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="app-shell">
-        <Navbar />
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<Home />} />
 
-        <Routes>
-          <Route path="/" element={<Home/>} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
+        {/* user */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/join-gate" element={<JoinGate />} />
 
+        {/* admin */}
+        <Route path="/admin-tools" element={<AdminPanel />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
 
-          {/* Join gate */}
-          <Route path="/join-gate" element={<JoinGate/>} />
-        </Routes>
-      </div>
+        {/* fallback */}
+        <Route
+          path="*"
+          element={
+            <main className="app-shell">
+              <div className="max-w">
+                <h1>404</h1>
+                <p>Không tìm thấy trang.</p>
+                <Link to="/" className="btn">
+                  Về trang chính
+                </Link>
+              </div>
+            </main>
+          }
+        />
+      </Routes>
     </BrowserRouter>
   );
 }
