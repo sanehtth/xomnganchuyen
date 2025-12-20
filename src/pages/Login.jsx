@@ -1,42 +1,25 @@
-import { useContext } from "react";
-import { AuthContext } from "../AuthContext.jsx";
-import { auth } from "../firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { Link, useNavigate } from "react-router-dom";
+// src/pages/Login.jsx
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../AuthContext";
+import { loginWithGooglePopup } from "../firebase";
 
-const provider = new GoogleAuthProvider();
-
-// DÙNG DEFAULT EXPORT
-export default function LoginPage() {
-  const { user, loading, role } = useContext(AuthContext);
+function LoginPage() {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  // Nếu đã đăng nhập thì tự chuyển sang /dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      navigate("/dashboard");
+    }
+  }, [loading, user, navigate]);
 
   const handleLogin = async () => {
-    if (user) return;
-
     try {
-      await signInWithPopup(auth, provider);
-
-      // Sau khi login xong, AuthContext sẽ cập nhật user & role.
-      // Dùng role hiện tại để điều hướng.
-      if (role === "guest") {
-        return navigate("/join-gate");
-      }
-
-      if (role === "member" || role === "associate") {
-        return navigate("/dashboard");
-      }
-    } catch (err) {
-      console.error("Login error:", err);
-
-      if (
-        err.code === "auth/popup-closed-by-user" ||
-        err.code === "auth/cancelled-popup-request" ||
-        err.code === "auth/popup-blocked-by-browser"
-      ) {
-        return;
-      }
-
+      await loginWithGooglePopup();
+    } catch (error) {
+      console.error("Lỗi đăng nhập:", error);
       alert("Có lỗi khi đăng nhập. Bạn hãy thử lại sau.");
     }
   };
@@ -55,7 +38,9 @@ export default function LoginPage() {
         <div className="max-w">
           <p>Bạn đã đăng nhập.</p>
           <p>
-            <Link to="/dashboard">Về trang chính</Link>
+            <a href="/dashboard" className="btn outline">
+              Về trang chính
+            </a>
           </p>
         </div>
       </main>
@@ -65,8 +50,8 @@ export default function LoginPage() {
   return (
     <main className="app-shell">
       <div className="max-w">
-        <h1>Đăng nhập Fanpage</h1>
-        <p>Dùng Google để vào hệ thống.</p>
+        <h1>Hệ thống Fanpage</h1>
+        <p>Đăng nhập Google để vào hệ thống.</p>
 
         <button className="btn primary mt-3" onClick={handleLogin}>
           Đăng nhập với Google
@@ -75,3 +60,5 @@ export default function LoginPage() {
     </main>
   );
 }
+
+export default LoginPage;
