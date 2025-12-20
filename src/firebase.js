@@ -15,6 +15,9 @@ import {
   onValue,
 } from "firebase/database";
 
+// ==== THÊM FIRESTORE VÀO ĐÂY ====
+import { getFirestore } from "firebase/firestore";
+
 // ===== CẤU HÌNH FIREBASE CỦA BẠN =====
 const firebaseConfig = {
   apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
@@ -34,6 +37,11 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getDatabase(app);
+
+// ==== THÊM DÒNG NÀY ====
+// Firestore dùng để quản lý user, trait, metrics, weekly...
+export const firestore = getFirestore(app);
+
 
 // Lắng nghe realtime 1 user theo uid (nếu sau này cần)
 export function listenUser(uid, cb) {
