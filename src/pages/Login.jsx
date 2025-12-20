@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../AuthContext.jsx";
-import { LoginWithGoogle } from "../firebase";
+import { loginWithGoogle } from "../firebase";
 
 function LoginPage() {
   const { user, loading } = useContext(AuthContext);
@@ -19,7 +19,7 @@ function LoginPage() {
   const handleLogin = async () => {
     try {
       setLoggingIn(true);
-      await LoginWithGoogle();          // dùng đúng hàm trong firebase.js
+      await loginWithGoogle();          // dùng đúng hàm trong firebase.js
       // sau khi login xong, AuthContext sẽ tự cập nhật user
     } catch (err) {
       console.error(err);
