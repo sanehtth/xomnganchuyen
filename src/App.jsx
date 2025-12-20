@@ -2,12 +2,13 @@
 import "./theme.css";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 
-import { Navbar } from "./components/Navbar.jsx";
-import { LoginPage } from "./pages/Login.jsx";
+import Navbar from "./components/Navbar.jsx";
+
+import LoginPage from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import JoinGate from "./pages/JoinGate.jsx";
+import AdminPanel from "./pages/admin/AdminPanel.jsx";
 import AdminUsers from "./pages/admin/AdminUsers.jsx";
-import AdminPanel from "./pages/AdminPanel.jsx";
 
 function Home() {
   return (
@@ -23,7 +24,9 @@ function Home() {
           <Link to="/login" className="btn">
             Đăng nhập
           </Link>
+
           <span style={{ marginLeft: 8 }} />
+
           <Link to="/dashboard" className="btn outline">
             Vào Dashboard
           </Link>
@@ -38,9 +41,8 @@ export default function App() {
     <BrowserRouter>
       <Navbar />
       <Routes>
-        <Route path="/" element={<Home />} />
-
         {/* user */}
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/join-gate" element={<JoinGate />} />
@@ -49,7 +51,7 @@ export default function App() {
         <Route path="/admin-tools" element={<AdminPanel />} />
         <Route path="/admin/users" element={<AdminUsers />} />
 
-        {/* fallback */}
+        {/* fallback 404 */}
         <Route
           path="*"
           element={
