@@ -1,6 +1,6 @@
 import { createContext, useEffect, useState, useContext } from "react";
-import { auth } from "./firebase";
-import { ensureUserRecord } from "./services/userService";
+import { auth, db } from "./firebase";
+import { ref, get } from "firebase/database";
 
 export const AuthContext = createContext({
   user: null,
@@ -12,7 +12,7 @@ export const AuthContext = createContext({
 
 const ADMIN_EMAILS = [
   "sane.htth@gmail.com",
-  // thêm email admin khác ở đây nếu cần
+  // nếu sau này có thêm admin thì thêm email vào đây
 ];
 
 export function AuthProvider({ children }) {
@@ -26,21 +26,31 @@ export function AuthProvider({ children }) {
     const unsubscribe = auth.onAuthStateChanged(async (u) => {
       setUser(u);
 
-      const admin = !!u && ADMIN_EMAILS.includes(u.email || "");
-      setIsAdmin(admin);
-
       if (u) {
-        // ĐỌC / KHỞI TẠO USER TRONG DB
-        const dbUser = await ensureUserRecord(u, admin);
+        // Xác định admin theo email
+        const admin = ADMIN_EMAILS.includes(u.email || "");
+        setIsAdmin(admin);
 
-        // Đọc role + status từ DB (không ghi đè nữa, logic nằm trong ensureUserRecord)
-        const dbRole = dbUser?.role || "guest";
-        const dbStatus = dbUser?.status || "none";
+        // CHỈ ĐỌC dữ liệu user từ Realtime Database
+        try {
+          const userRef = ref(db, `users/${u.uid}`);
+          const snap = await get(userRef);
+          const data = snap.exists() ? snap.val() : {};
 
-        setRole(dbRole);
-        setMemberStatus(dbStatus);
+          const dbRole = data.role || "guest";
+          const dbStatus = data.status || "none";
+
+          setRole(dbRole);
+          setMemberStatus(dbStatus);
+        } catch (err) {
+          console.error("Lỗi khi đọc user record:", err);
+          // Nếu đọc DB lỗi thì vẫn cho login, nhưng coi như guest chưa gửi yêu cầu
+          setRole("guest");
+          setMemberStatus("none");
+        }
       } else {
-        // Không có user -> reset state
+        // Không có user (đã logout)
+        setIsAdmin(false);
         setRole("guest");
         setMemberStatus("none");
       }
@@ -66,7 +76,7 @@ export function AuthProvider({ children }) {
   );
 }
 
-// Hook tiện dùng trong component khác
+// Hook tiện dùng
 export function useAuth() {
   return useContext(AuthContext);
 }
