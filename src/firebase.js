@@ -5,6 +5,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
+  onAuthStateChanged,
 } from "firebase/auth";
 import {
   getDatabase,
@@ -15,10 +16,9 @@ import {
   update,
 } from "firebase/database";
 
-// TODO: thay toàn bộ object này bằng config thật của em
-// copy từ file cũ hoặc từ Firebase console
+// TODO: THAY BẰNG CONFIG THẬT CỦA EM
 const firebaseConfig = {
-  apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
+   apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
   authDomain: "xomnganchuyen.firebaseapp.com",
   projectId: "xomnganchuyen",
   storageBucket: "xomnganchuyen.firebasestorage.app",
@@ -29,22 +29,34 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Auth
+// ---------- AUTH ----------
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Realtime Database (đang dùng cho user hiện tại)
+// ---------- REALTIME DB ----------
 export const db = getDatabase(app);
 
-// Lắng nghe user trong Realtime Database
+// Lắng nghe thay đổi dữ liệu user trong Realtime DB
 export function listenUser(uid, cb) {
+  if (!uid) return () => {};
   const userRef = ref(db, `users/${uid}`);
   return onValue(userRef, (snap) => {
     cb(snap.val() || null);
   });
 }
 
+// Helper tạo mã joinCode ngẫu nhiên
+function generateJoinCode(length = 8) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
+
 // Tạo / cập nhật hồ sơ user trong Realtime DB
+// LƯU Ý: status mặc định là "none" (chưa gửi yêu cầu VIP)
 export async function ensureUserProfile(user) {
   if (!user) return null;
 
@@ -63,8 +75,8 @@ export async function ensureUserProfile(user) {
       coin: 0,
       xp: 0,
       joinCode: "",
-      role: "guest",      // guest mặc định
-      status: "pending",  // chờ duyệt VIP
+      role: "guest",   // khách
+      status: "none",  // chưa gửi yêu cầu VIP
     };
 
     await set(userRef, payload);
@@ -72,19 +84,17 @@ export async function ensureUserProfile(user) {
   }
 
   const existing = snap.val();
+  const lastActiveAt = Date.now();
 
-  const updated = {
+  await update(userRef, { lastActiveAt });
+
+  return {
     ...existing,
-    // chỉ update lastActiveAt khi login, KHÔNG đụng tới role/status/joinCode
-    lastActiveAt: Date.now(),
+    lastActiveAt,
   };
-
-  await update(userRef, { lastActiveAt: updated.lastActiveAt });
-
-  return updated;
 }
 
-// Đăng nhập Google, tự tạo hồ sơ user nếu chưa có
+// Đăng nhập Google + đảm bảo hồ sơ user tồn tại
 export async function loginWithGoogle() {
   const res = await signInWithPopup(auth, googleProvider);
   const user = res.user;
@@ -97,4 +107,33 @@ export async function loginWithGoogle() {
 // Đăng xuất
 export async function logout() {
   await signOut(auth);
+}
+
+// HÀM EM ĐANG IMPORT Ở JoinGate.jsx
+// -> khi user bấm "Gửi yêu cầu VIP"
+export async function requestVip(uid) {
+  if (!uid) throw new Error("Missing uid");
+
+  const userRef = ref(db, `users/${uid}`);
+  const snap = await get(userRef);
+
+  if (!snap.exists()) {
+    throw new Error("User not found in database");
+  }
+
+  const user = snap.val();
+
+  // Nếu chưa có joinCode thì tạo mới, nếu có rồi thì giữ nguyên
+  const joinCode = user.joinCode && user.joinCode.trim()
+    ? user.joinCode
+    : generateJoinCode(8);
+
+  const updates = {
+    status: "pending", // gửi yêu cầu VIP -> chờ duyệt
+    joinCode,
+  };
+
+  await update(userRef, updates);
+
+  return { ...user, ...updates };
 }
