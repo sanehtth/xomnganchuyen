@@ -27,7 +27,7 @@ function AdminUsers() {
 
   // Lấy danh sách user từ Realtime Database
   useEffect(() => {
-    const usersRef = ref(database, "users");
+    const usersRef = ref(db, "users");
 
     const unsub = onValue(usersRef, (snap) => {
       const data = snap.val() || {};
@@ -111,7 +111,7 @@ function AdminUsers() {
         updates[`users/${uid}/status`] = "approved";
       });
 
-      await update(ref(database), updates);
+      await update(ref(db), updates);
 
       alert("Duyệt thành công.");
       setSelectedIds([]);
@@ -246,4 +246,5 @@ function AdminUsers() {
 }
 
 export default AdminUsers;
+
 
