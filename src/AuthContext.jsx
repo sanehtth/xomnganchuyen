@@ -20,12 +20,13 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((u) => {
-      setUser(u);
-      setIsAdmin(u ? ADMIN_EMAILS.includes(u.email) : false);
-      setLoading(false);
+        setUser(u);
+        setIsAdmin(u ? ADMIN_EMAILS.includes(u.email) : false);
+        setLoading(false);
     });
     return unsub;
-  }, []);
+}, []);
+
 
   return (
     <AuthContext.Provider value={{ user, loading, isAdmin }}>
