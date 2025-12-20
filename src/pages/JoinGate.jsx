@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 export default function JoinGate() {
   const { user, loading } = useContext(AuthContext);
   const [role, setRole] = useState("guest");
+  const [status, setStatus] = useState("none"); // thêm trạng thái riêng
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -16,10 +17,12 @@ export default function JoinGate() {
     get(userRef).then((snap) => {
       if (!snap.exists()) {
         setRole("guest");
+        setStatus("none");
         return;
       }
       const data = snap.val();
       setRole(data.role || "guest");
+      setStatus(data.status || "none");
     });
   }, [user]);
 
@@ -30,15 +33,17 @@ export default function JoinGate() {
     }
 
     const userRef = ref(db, `users/${user.uid}`);
+
     await update(userRef, {
       email: user.email,
       displayName: user.displayName || "",
-      role: "pending",
+      // KHÔNG đổi role ở đây, để role vẫn là "guest"
+      status: "pending", // đánh dấu đã gửi yêu cầu
       joinRequestedAt: Date.now(),
-      lastActive: Date.now(),
+      lastActiveAt: Date.now(),
     });
 
-    setRole("pending");
+    setStatus("pending");
   }
 
   if (loading) return <div>Đang kiểm tra đăng nhập...</div>;
@@ -56,7 +61,8 @@ export default function JoinGate() {
     <div style={{ padding: 30 }}>
       <h1>Đăng ký thành viên VIP</h1>
 
-      {role === "guest" && (
+      {/* Chưa gửi yêu cầu và vẫn là guest */}
+      {status !== "pending" && role === "guest" && (
         <>
           <p>Đầu tiên, hãy sub kênh Youtube của hệ thống rồi bấm nút dưới.</p>
           <a
@@ -78,15 +84,18 @@ export default function JoinGate() {
         </>
       )}
 
-      {role === "pending" && (
+      {/* Đã gửi yêu cầu, chờ duyệt */}
+      {status === "pending" && (
         <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
       )}
 
-      {role === "member" && (
+      {/* Đã là member */}
+      {status === "approved" && role === "member" && (
         <p>Bạn đã là VIP. ID sẽ hiển thị trong Dashboard.</p>
       )}
 
-      {role === "associate" && (
+      {/* Nếu sau này dùng associate */}
+      {status === "approved" && role === "associate" && (
         <p>Bạn đang ở nhóm Cộng sự (Associate).</p>
       )}
     </div>
