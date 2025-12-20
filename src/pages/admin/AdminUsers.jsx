@@ -3,6 +3,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ref, onValue, update } from "firebase/database";
 import { db } from "../../firebase";
 
+// Hàm tạo ID thành viên 10 ký tự (loại bỏ các ký tự dễ nhầm như O/0, I/1)
+function generateMemberId() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let result = "";
+  for (let i = 0; i < 10; i++) {
+    const index = Math.floor(Math.random() * chars.length);
+    result += chars[index];
+  }
+  return result;
+}
+
 // Các lựa chọn lọc theo vai trò / trạng thái
 const ROLE_FILTERS = [
   { value: "all", label: "Tất cả" },
@@ -106,9 +117,18 @@ function AdminUsers() {
       setLoadingAction(true);
 
       const updates = {};
+
       selectedIds.forEach((uid) => {
+        const user = users.find((u) => u.uid === uid);
+        if (!user) return;
+
         updates[`users/${uid}/role`] = roleTarget;
         updates[`users/${uid}/status`] = "approved";
+
+        // Nếu chưa có joinCode thì tạo ID thành viên 10 ký tự
+        if (!user.joinCode) {
+          updates[`users/${uid}/joinCode`] = generateMemberId();
+        }
       });
 
       await update(ref(db), updates);
@@ -246,5 +266,3 @@ function AdminUsers() {
 }
 
 export default AdminUsers;
-
-
