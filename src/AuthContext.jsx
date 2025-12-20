@@ -8,9 +8,10 @@ export const AuthContext = createContext({
 });
 
 const ADMIN_EMAILS = [
-  // Thêm email admin cố định tại đây, vd:
-  // "youremail@gmail.com"
+  "sane.htth@gmail.com",
+  // thêm email admin khác ở đây
 ];
+
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
