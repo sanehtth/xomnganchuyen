@@ -1,65 +1,44 @@
-﻿// src/AuthContext.jsx
+// src/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
-import {
-  auth,
-  onAuthChange,
-  loginWithGoogle,
-  logoutFirebase,
-  ensureUserProfile,
-  updateUserTheme,
-} from "./firebase";
+import { auth, listenUser, loginWithGoogle, logout } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
-const AuthContext = createContext();
+export const AuthContext = createContext(null);
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
-
-/**
- * Ghi chú:
- * - state chính: { firebaseUser, profile, loading, theme }
- * - theme: vừa lưu ở localStorage, vừa lưu Firestore (nếu đã đăng nhập)
- */
 export function AuthProvider({ children }) {
-  const [firebaseUser, setFirebaseUser] = useState(null);
-  const [profile, setProfile] = useState(null); // dữ liệu trong collection users
+  const [firebaseUser, setFirebaseUser] = useState(null); // user của Firebase Auth
+  const [userRecord, setUserRecord] = useState(null);      // user trong Realtime DB
   const [loading, setLoading] = useState(true);
-  const [theme, setTheme] = useState(
-    () => window.localStorage.getItem("theme") || "light"
-  );
 
-  // Áp theme vào body
+  // Theo dõi trạng thái đăng nhập Firebase
   useEffect(() => {
-    document.body.dataset.theme = theme;
-    window.localStorage.setItem("theme", theme);
-  }, [theme]);
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      setFirebaseUser(user || null);
 
-  // Lắng nghe thay đổi đăng nhập
-  useEffect(() => {
-    const unsub = onAuthChange(async (user) => {
       if (!user) {
-        setFirebaseUser(null);
-        setProfile(null);
+        setUserRecord(null);
         setLoading(false);
         return;
       }
-      setFirebaseUser(user);
-      const p = await ensureUserProfile(user);
-      setProfile(p);
-      if (p.theme) setTheme(p.theme);
-      setLoading(false);
+
+      // Lắng nghe dữ liệu user trong Realtime DB
+      const stopListen = listenUser(user.uid, (data) => {
+        setUserRecord(data);
+        setLoading(false);
+      });
+
+      return () => stopListen();
     });
 
     return () => unsub();
   }, []);
 
-  const handleLoginWithGoogle = async () => {
+  const handleLoginGoogle = async () => {
     setLoading(true);
     try {
-      const { firebaseUser: fu, profile: p } = await loginWithGoogle();
-      setFirebaseUser(fu);
-      setProfile(p);
-      if (p.theme) setTheme(p.theme);
+      const { user, userRecord } = await loginWithGoogle();
+      setFirebaseUser(user);
+      setUserRecord(userRecord);
     } finally {
       setLoading(false);
     }
@@ -68,41 +47,47 @@ export function AuthProvider({ children }) {
   const handleLogout = async () => {
     setLoading(true);
     try {
-      await logoutFirebase();
+      await logout();
+      setFirebaseUser(null);
+      setUserRecord(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChangeTheme = async (nextTheme) => {
-    setTheme(nextTheme);
-    if (firebaseUser) {
-      // nếu đã login thì lưu lên Firestore
-      try {
-        await updateUserTheme(firebaseUser.uid, nextTheme);
-      } catch (e) {
-        console.error("Update theme failed", e);
-      }
-    }
-  };
+  const role = userRecord?.role ?? "guest";
+  const status = userRecord?.status ?? "none";
+
+  const isAdmin = role === "admin";
+  const isMember = role === "member";
+  const isAssociate = role === "associate";
 
   const value = {
+    // thô
     firebaseUser,
-    profile,
+    userRecord,
     loading,
-    theme,
-    loginWithGoogle: handleLoginWithGoogle,
+
+    // thông tin hay dùng
+    role,
+    status,
+    isAdmin,
+    isMember,
+    isAssociate,
+
+    // action
+    loginWithGoogle: handleLoginGoogle,
     logout: handleLogout,
-    setTheme: handleChangeTheme,
-    // tiện: flag check quyền
-    isAdmin: profile?.role === "admin",
-    isMember: profile?.role === "member",
-    isContributor: profile?.role === "contributor",
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
+}
+
+// hook tiện dùng trong mọi component
+export function useAuth() {
+  return useContext(AuthContext);
 }
