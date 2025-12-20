@@ -31,41 +31,88 @@ export function listenUser(uid, cb) {
   return onValue(userRef, (snap) => cb(snap.val()));
 }
 
-// Tạo / cập nhật hồ sơ user
-export function ensureUserProfile(user) {
-  const userRef = ref(db, `users/${user.uid}`);
+/**
+ * Tạo / cập nhật hồ sơ user
+ *
+ * - Nếu user CHƯA có trong DB:
+ *     tạo record mới với role = "guest", status = "none"
+ * - Nếu user ĐÃ có:
+ *     chỉ cập nhật thông tin cơ bản (email, displayName, photoURL, lastActiveAt)
+ *     KHÔNG đụng vào role / status / joinCode / level / coin / xp
+ */
+export async function ensureUserProfile(user) {
+  if (!user) return;
 
-  const payload = {
+  const userRef = ref(db, `users/${user.uid}`);
+  const snap = await get(userRef);
+
+  const baseProfile = {
     uid: user.uid,
     displayName: user.displayName ?? "",
     email: user.email ?? "",
     photoURL: user.photoURL ?? "",
-    createdAt: Date.now(),
-    lastActiveAt: Date.now(),
-    xp: 0,
-    level: 1,
-    coin: 0,
-    role: "guest",
-    status: "pending",
   };
 
-  return set(userRef, payload);
+  // User chưa tồn tại -> tạo mới
+  if (!snap.exists()) {
+    const now = Date.now();
+
+    const payload = {
+      ...baseProfile,
+      createdAt: now,
+      lastActiveAt: now,
+      role: "guest",   // tất cả user mới là guest
+      status: "none",  // chưa gửi yêu cầu VIP
+      level: 0,
+      xp: 0,
+      coin: 0,
+      joinCode: "",    // admin sẽ tạo khi duyệt
+    };
+
+    await set(userRef, payload);
+    return payload;
+  }
+
+  // User đã tồn tại -> chỉ update thông tin cơ bản
+  const current = snap.val() || {};
+  const now = Date.now();
+
+  const updates = {};
+  let needUpdate = false;
+
+  if (current.displayName !== baseProfile.displayName) {
+    updates.displayName = baseProfile.displayName;
+    needUpdate = true;
+  }
+  if (current.email !== baseProfile.email) {
+    updates.email = baseProfile.email;
+    needUpdate = true;
+  }
+  if (current.photoURL !== baseProfile.photoURL) {
+    updates.photoURL = baseProfile.photoURL;
+    needUpdate = true;
+  }
+
+  updates.lastActiveAt = now;
+  needUpdate = true;
+
+  if (needUpdate) {
+    await update(userRef, updates);
+  }
+
+  return { ...current, ...updates };
 }
 
-// ========= HÀM ĐANG GÂY LỖI NẾU KHÔNG EXPORT =========
-export async function LoginWithGooglePopup() {
+// Đăng nhập bằng Google
+export async function loginWithGooglePopup() {
   const res = await signInWithPopup(auth, googleProvider);
   const user = res.user;
+  // GỌI ensureUserProfile nhưng giờ đã an toàn, không reset role/status/joinCode
   await ensureUserProfile(user);
   return user;
 }
 
-// Giữ lại tên cũ cho các file khác (nếu có)
-export async function loginWithGoogle() {
-  return LoginWithGooglePopup();
-}
-
-// Logout
-export function logout() {
-  return signOut(auth);
+// Đăng xuất
+export async function logout() {
+  await signOut(auth);
 }
