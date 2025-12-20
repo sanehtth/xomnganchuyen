@@ -2,24 +2,37 @@ import { useContext } from "react";
 import { AuthContext } from "../AuthContext.jsx";
 import { auth } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const provider = new GoogleAuthProvider();
 
 export function LoginPage() {
-  const { user, loading } = useContext(AuthContext);
+  const { user, loading, role } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const handleLogin = async () => {
-    // đã đăng nhập rồi thì không gọi lại
     if (user) return;
-
     try {
       await signInWithPopup(auth, provider);
-      // thành công: AuthContext sẽ tự cập nhật user, không cần alert gì
+      
+      // Sau khi login thành công → AuthContext sẽ cập nhật "role"
+      // Ta redirect theo role:
+
+      if (role === "guest") {
+        return navigate("/join-gate");
+      }
+
+      if (role === "member") {
+        return navigate("/dashboard");
+      }
+
+      if (role === "associate") {
+        return navigate("/dashboard");
+      }
+
     } catch (err) {
       console.error("Login error:", err);
 
-      // Một số lỗi không cần báo cho user (bị chặn popup, đóng popup, request trùng)
       if (
         err.code === "auth/popup-closed-by-user" ||
         err.code === "auth/cancelled-popup-request" ||
@@ -40,7 +53,6 @@ export function LoginPage() {
     );
   }
 
-  // Nếu đã đăng nhập rồi thì chỉ cho quay về Dashboard, không hiển thị nút login nữa
   if (user) {
     return (
       <main className="app-shell">
@@ -54,12 +66,11 @@ export function LoginPage() {
     );
   }
 
-  // Chưa đăng nhập → hiển thị nút login
   return (
     <main className="app-shell">
       <div className="max-w">
         <h1>Đăng nhập Fanpage</h1>
-        <p>Dùng Google để vào hệ thống fan &amp; admin.</p>
+        <p>Dùng Google để vào hệ thống.</p>
 
         <button className="btn primary mt-3" onClick={handleLogin}>
           Đăng nhập với Google
