@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from "react";
-import { useAuth } from "../AuthContext";
-import { database } from "../firebase";
+import React, { useState, useEffect, useContext } from "react";
+import { AuthContext } from "../AuthContext";
+import { db } from "../firebase";
 import { ref, get, update } from "firebase/database";
 import { useNavigate } from "react-router-dom";
 
 export default function JoinGate() {
-
-  const { user, loading } = useAuth();
+  const { user, loading } = useContext(AuthContext);
   const [role, setRole] = useState("guest");
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) return;
-    const userRef = ref(database, `users/${user.uid}`);
-    get(userRef).then(snap => {
+
+    const userRef = ref(db, `users/${user.uid}`);
+    get(userRef).then((snap) => {
       if (!snap.exists()) {
         setRole("guest");
         return;
@@ -29,13 +29,13 @@ export default function JoinGate() {
       return;
     }
 
-    const userRef = ref(database, `users/${user.uid}`);
+    const userRef = ref(db, `users/${user.uid}`);
     await update(userRef, {
       email: user.email,
       displayName: user.displayName || "",
       role: "pending",
       joinRequestedAt: Date.now(),
-      lastActive: Date.now()
+      lastActive: Date.now(),
     });
 
     setRole("pending");
@@ -54,22 +54,24 @@ export default function JoinGate() {
 
   return (
     <div style={{ padding: 30 }}>
-      <h1>Đăng ký VIP</h1>
+      <h1>Đăng ký thành viên VIP</h1>
 
       {role === "guest" && (
         <>
-          <p>Sub Youtube kênh hệ thống rồi bấm nút dưới để gửi yêu cầu VIP.</p>
+          <p>Đầu tiên, hãy sub kênh Youtube của hệ thống rồi bấm nút dưới.</p>
           <a
             href="https://youtube.com"
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary"
           >
-            Sub Youtube
+            Bấm để sub Youtube
           </a>
 
-          <br /><br />
+          <br />
+          <br />
 
+          <p>Sau đó bấm nút dưới để gửi yêu cầu VIP:</p>
           <button className="btn btn-primary" onClick={requestVIP}>
             Gửi yêu cầu VIP
           </button>
@@ -81,11 +83,11 @@ export default function JoinGate() {
       )}
 
       {role === "member" && (
-        <p>Bạn đã là VIP. Xem ID trong Dashboard.</p>
+        <p>Bạn đã là VIP. ID sẽ hiển thị trong Dashboard.</p>
       )}
 
       {role === "associate" && (
-        <p>Bạn là cộng sự của hệ thống.</p>
+        <p>Bạn đang ở nhóm Cộng sự (Associate).</p>
       )}
     </div>
   );
