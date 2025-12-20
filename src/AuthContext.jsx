@@ -53,3 +53,7 @@ const [role, setRole] = useState("guest");
     </AuthContext.Provider>
   );
 }
+/* 👉 THÊM HOOK NÀY ĐỂ FIX BUILD ERROR */
+export function useAuth() {
+  return useContext(AuthContext);
+}
