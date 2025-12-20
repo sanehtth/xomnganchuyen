@@ -42,7 +42,13 @@ const [role, setRole] = useState("guest");
 
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin }}>
+    <AuthContext.Provider value={{
+  user,
+  loading,
+  isAdmin,
+  memberStatus,
+  role
+}}>
       {children}
     </AuthContext.Provider>
   );
