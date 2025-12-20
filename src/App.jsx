@@ -1,7 +1,8 @@
 import "./theme.css";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 
-import Navbar from "./components/Navbar.jsx";
+import { Navbar } from "./components/Navbar.jsx";
+
 import LoginPage from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import JoinGate from "./pages/JoinGate.jsx";
