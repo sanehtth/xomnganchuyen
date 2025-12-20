@@ -4,6 +4,7 @@ import { Navbar } from "./components/Navbar.jsx";
 import { LoginPage } from "./pages/Login.jsx";
 import { Dashboard } from "./pages/Dashboard.jsx";
 import { AdminPanel } from "./pages/AdminPanel.jsx";
+import { AdminUsers } from "./pages/AdminUsers.jsx";
 
 function Home() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin-tools" element={<AdminPanel />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
         </Routes>
       </div>
     </BrowserRouter>
