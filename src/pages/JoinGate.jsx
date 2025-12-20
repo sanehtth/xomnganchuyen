@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useContext } from "react";
+// src/pages/JoinGate.jsx
+import React, { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../AuthContext";
 import { db } from "../firebase";
 import { ref, get, update } from "firebase/database";
@@ -6,98 +7,166 @@ import { useNavigate } from "react-router-dom";
 
 export default function JoinGate() {
   const { user, loading } = useContext(AuthContext);
-  const [role, setRole] = useState("guest");
-  const [status, setStatus] = useState("none"); // thêm trạng thái riêng
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
+  // Đọc thông tin user từ Realtime Database
   useEffect(() => {
-    if (!user) return;
-
-    const userRef = ref(db, `users/${user.uid}`);
-    get(userRef).then((snap) => {
-      if (!snap.exists()) {
-        setRole("guest");
-        setStatus("none");
-        return;
-      }
-      const data = snap.val();
-      setRole(data.role || "guest");
-      setStatus(data.status || "none");
-    });
-  }, [user]);
-
-  async function requestVIP() {
     if (!user) {
-      navigate("/login");
+      setProfile(null);
+      setLoadingProfile(false);
       return;
     }
 
     const userRef = ref(db, `users/${user.uid}`);
+    setLoadingProfile(true);
+    get(userRef)
+      .then((snap) => {
+        if (snap.exists()) {
+          setProfile(snap.val());
+        } else {
+          setProfile(null);
+        }
+      })
+      .finally(() => setLoadingProfile(false));
+  }, [user]);
 
-    await update(userRef, {
-      email: user.email,
-      displayName: user.displayName || "",
-      // KHÔNG đổi role ở đây, để role vẫn là "guest"
-      status: "pending", // đánh dấu đã gửi yêu cầu
-      joinRequestedAt: Date.now(),
-      lastActiveAt: Date.now(),
-    });
-
-    setStatus("pending");
-  }
-
-  if (loading) return <div>Đang kiểm tra đăng nhập...</div>;
-
-  if (!user) {
+  if (loading || loadingProfile) {
     return (
-      <div style={{ padding: 30 }}>
-        <h1>Đăng ký VIP</h1>
-        <p>Bạn cần đăng nhập để sử dụng tính năng này.</p>
-      </div>
+      <main className="app-shell">
+        <div className="max-w">
+          <p>Đang tải...</p>
+        </div>
+      </main>
     );
   }
 
-  return (
-    <div style={{ padding: 30 }}>
-      <h1>Đăng ký thành viên VIP</h1>
-
-      {/* Chưa gửi yêu cầu và vẫn là guest */}
-      {status !== "pending" && role === "guest" && (
-        <>
-          <p>Đầu tiên, hãy sub kênh Youtube của hệ thống rồi bấm nút dưới.</p>
-          <a
-            href="https://youtube.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary"
-          >
-            Bấm để sub Youtube
-          </a>
-
-          <br />
-          <br />
-
-          <p>Sau đó bấm nút dưới để gửi yêu cầu VIP:</p>
-          <button className="btn btn-primary" onClick={requestVIP}>
-            Gửi yêu cầu VIP
+  if (!user) {
+    return (
+      <main className="app-shell">
+        <div className="max-w">
+          <p>Bạn cần đăng nhập trước.</p>
+          <button className="btn" onClick={() => navigate("/login")}>
+            Về trang đăng nhập
           </button>
-        </>
-      )}
+        </div>
+      </main>
+    );
+  }
 
-      {/* Đã gửi yêu cầu, chờ duyệt */}
-      {status === "pending" && (
-        <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
-      )}
+  const role = profile?.role || "guest";          // guest | member | associate
+  const status = profile?.status || "none";       // none | pending | approved | rejected
 
-      {/* Đã là member */}
-      {status === "approved" && role === "member" && (
-        <p>Bạn đã là VIP. ID sẽ hiển thị trong Dashboard.</p>
-      )}
+  const requestVIP = async () => {
+    if (!user) return;
 
-      {/* Nếu sau này dùng associate */}
-      {status === "approved" && role === "associate" && (
-        <p>Bạn đang ở nhóm Cộng sự (Associate).</p>
-      )}
-    </div>
+    // Nếu đã là member/associate thì không cho gửi nữa
+    if (role === "member" || role === "associate") {
+      alert("Bạn đã là thành viên rồi, không cần gửi yêu cầu nữa.");
+      return;
+    }
+
+    // Nếu đã gửi yêu cầu và đang pending thì không cho gửi lại
+    if (status === "pending") {
+      alert("Bạn đã gửi yêu cầu VIP, vui lòng chờ admin duyệt.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const userRef = ref(db, `users/${user.uid}`);
+
+      // CHỈ cập nhật status (và requestedAt), KHÔNG đụng role / joinCode / coin / level / ...
+      await update(userRef, {
+        status: "pending",
+        requestedAt: Date.now(),
+      });
+
+      setProfile((prev) => ({
+        ...(prev || {}),
+        status: "pending",
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("Có lỗi xảy ra khi gửi yêu cầu VIP. Bạn hãy thử lại sau.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <main className="app-shell">
+      <div className="max-w">
+        <h1>Cổng đăng ký VIP</h1>
+        <p>Xin chào, {profile?.displayName || user.displayName || user.email}</p>
+
+        {/* Trường hợp đã là member/associate */}
+        {(role === "member" || role === "associate") && (
+          <>
+            {role === "member" && (
+              <>
+                <p>Bạn đã là VIP (Member).</p>
+                {profile?.joinCode && (
+                  <p>
+                    ID thành viên: <strong>{profile.joinCode}</strong>
+                  </p>
+                )}
+              </>
+            )}
+
+            {role === "associate" && (
+              <p>Bạn đang ở nhóm Cộng sự (Associate).</p>
+            )}
+
+            {status === "approved" && (
+              <p>Yêu cầu của bạn đã được admin duyệt.</p>
+            )}
+
+            {status === "pending" && (
+              <p>Trạng thái đang chờ duyệt (pending).</p>
+            )}
+          </>
+        )}
+
+        {/* Trường hợp vẫn là guest */}
+        {role === "guest" && (
+          <>
+            {status !== "pending" && (
+              <>
+                <p>
+                  Bước 1: Bấm vào link dưới để subscribe kênh Youtube của mình.
+                </p>
+                <a
+                  href="https://www.youtube.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn"
+                >
+                  Bấm để sub Youtube
+                </a>
+
+                <br />
+                <br />
+
+                <p>Bước 2: Bấm nút dưới để gửi yêu cầu VIP:</p>
+                <button
+                  className="btn btn-primary"
+                  onClick={requestVIP}
+                  disabled={submitting}
+                >
+                  {submitting ? "Đang gửi yêu cầu..." : "Gửi yêu cầu VIP"}
+                </button>
+              </>
+            )}
+
+            {status === "pending" && (
+              <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
+            )}
+          </>
+        )}
+      </div>
+    </main>
   );
 }
