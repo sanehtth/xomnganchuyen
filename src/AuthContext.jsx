@@ -1,4 +1,4 @@
-// src/AuthContext.jsx
+﻿// src/AuthContext.jsx
 import {
   createContext,
   useContext,
@@ -6,9 +6,10 @@ import {
   useState,
 } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, ensureUserProfile } from "./firebase";
+import { auth, ensureUserDoc } from "./firebase";
+import { firestore } from "./firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 
-// Giá trị mặc định
 export const AuthContext = createContext({
   user: null,
   loading: true,
@@ -18,20 +19,19 @@ export const AuthContext = createContext({
   status: "none",
 });
 
-// List email admin
-const ADMIN_EMAILS = ["sane.htth@gmail.com"]; // sửa thành email admin của bạn
+const ADMIN_EMAILS = ["sane.htth@gmail.com"];
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    // Lắng nghe trạng thái login
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
 
-      // Chưa đăng nhập
       if (!firebaseUser) {
         setUser(null);
         setProfile(null);
@@ -40,18 +40,28 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // Có user
       setUser(firebaseUser);
       setIsAdmin(ADMIN_EMAILS.includes(firebaseUser.email || ""));
 
-      try {
-        const prof = await ensureUserProfile(firebaseUser);
-        setProfile(prof);
-      } catch (err) {
-        console.error("ensureUserProfile error:", err);
-      } finally {
-        setLoading(false);
-      }
+      // Đảm bảo doc tồn tại
+      const ensured = await ensureUserDoc(firebaseUser);
+
+      // Lắng nghe realtime user doc từ Firestore
+      const userRef = doc(firestore, "users", firebaseUser.uid);
+      const unsubDoc = onSnapshot(userRef, (snap) => {
+        if (snap.exists()) {
+          setProfile(snap.data());
+        } else {
+          setProfile(ensured || null);
+        }
+      });
+
+      setLoading(false);
+
+      // cleanup khi logout
+      return () => {
+        unsubDoc();
+      };
     });
 
     return () => unsubscribe();
@@ -59,11 +69,11 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    profile,
     loading,
     isAdmin,
-    profile,
-    role: profile?.role ?? "guest",
-    status: profile?.status ?? "none",
+    role: profile?.role || "guest",
+    status: profile?.status || "none",
   };
 
   return (
