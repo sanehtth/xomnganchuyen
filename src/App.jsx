@@ -5,6 +5,8 @@ import { LoginPage } from "./pages/Login.jsx";
 import { Dashboard } from "./pages/Dashboard.jsx";
 import { AdminPanel } from "./pages/AdminPanel.jsx";
 import { AdminUsers } from "./pages/AdminUsers.jsx";
+import JoinGate from "./pages/JoinGate";
+import AdminUsers from "./pages/admin/AdminUsers";
 
 function Home() {
   return (
@@ -30,12 +32,15 @@ export default function App() {
       <div className="app-shell">
         <Navbar />
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admin-tools" element={<AdminPanel />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-        </Routes>
+
+<Route path="/join-gate" element={<JoinGate/>} />
+
+<Route path="/admin/users" element={
+   isAdmin ? <AdminUsers/> : <h1>Forbidden</h1>
+}/>
+
+</Routes>
+
       </div>
     </BrowserRouter>
   );
