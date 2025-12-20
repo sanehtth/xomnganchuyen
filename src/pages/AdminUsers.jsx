@@ -1,282 +1,212 @@
-// src/pages/admin/AdminUsers.jsx
-import { useContext, useEffect, useState } from "react";
+// src/pages/AdminUsers.jsx
+import React, { useEffect, useState } from "react";
+import { db } from "../firebase";
 import { ref, onValue, update } from "firebase/database";
-import { db } from "../../firebase.js";
-import { AuthContext } from "../../AuthContext.jsx";
-import { Link } from "react-router-dom";
 
-function normalizeUser(uid, data) {
-  const profile = data.profile || {};
-  const stats = data.stats || {};
-  const system = data.system || {};
-
-  return {
-    uid,
-    name: profile.displayName || "No name",
-    email: profile.email || "",
-    role: profile.role || "guest",        // guest | member | associate
-    status: profile.status || "active",   // active | pending | blocked
-    level: stats.level || 1,
-    xp: stats.xp || 0,
-    coin: stats.coin || 0,
-    joined: system.joinedAt || "",
-    lastActive: system.lastActiveAt || "",
-  };
+function formatDate(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
-function groupUsers(usersObj) {
-  const guests = [];
-  const members = [];
-  const associates = [];
-
-  Object.entries(usersObj || {}).forEach(([uid, data]) => {
-    const u = normalizeUser(uid, data);
-
-    if (u.role === "associate") associates.push(u);
-    else if (u.role === "member") members.push(u);
-    else guests.push(u);
-  });
-
-  const byJoined = (a, b) => (a.joined || "").localeCompare(b.joined || "");
-
-  guests.sort(byJoined);
-  members.sort(byJoined);
-  associates.sort(byJoined);
-
-  return { guests, members, associates };
+function roleLabel(role) {
+  if (role === "member") return "Member";
+  if (role === "associate") return "Associate";
+  return "Guest";
 }
 
-function UserRow({ user, onSetRole, onSetStatus, busy }) {
-  return (
-    <tr key={user.uid}>
-      <td>
-        <div style={{ fontWeight: 500 }}>{user.name}</div>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>{user.email}</div>
-        <div style={{ fontSize: 11, opacity: 0.7 }}>
-          Role: <strong>{user.role}</strong> | Status:{" "}
-          <strong>{user.status}</strong>
-        </div>
-      </td>
-      <td>{user.level}</td>
-      <td>{user.xp}</td>
-      <td>{user.coin}</td>
-      <td>{user.joined || "-"}</td>
-      <td>{user.lastActive || "-"}</td>
-      <td>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {user.role === "guest" && (
-            <>
-              <button
-                disabled={busy}
-                onClick={() => onSetRole(user, "member")}
-                className="btn-small"
-              >
-                Cho làm Member
-              </button>
-              <button
-                disabled={busy}
-                onClick={() => onSetStatus(user, "pending")}
-                className="btn-small secondary"
-              >
-                Set Pending
-              </button>
-            </>
-          )}
-
-          {user.role === "member" && (
-            <>
-              <button
-                disabled={busy}
-                onClick={() => onSetRole(user, "associate")}
-                className="btn-small"
-              >
-                Cho làm Associate
-              </button>
-              <button
-                disabled={busy}
-                onClick={() => onSetStatus(user, "blocked")}
-                className="btn-small danger"
-              >
-                Block
-              </button>
-            </>
-          )}
-
-          {user.role === "associate" && (
-            <button
-              disabled={busy}
-              onClick={() => onSetStatus(user, "blocked")}
-              className="btn-small danger"
-            >
-              Block
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function UserTable({ title, users, onSetRole, onSetStatus, busy }) {
-  return (
-    <section className="mt-3">
-      <h2>
-        {title}{" "}
-        <span style={{ fontSize: 14, opacity: 0.6 }}>({users.length})</span>
-      </h2>
-
-      {users.length === 0 ? (
-        <p style={{ fontSize: 14, opacity: 0.7 }}>Chưa có ai trong nhóm này.</p>
-      ) : (
-        <div className="table-wrapper">
-          <table className="user-table">
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Level</th>
-                <th>XP</th>
-                <th>Coin</th>
-                <th>Joined</th>
-                <th>Last active</th>
-                <th>Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <UserRow
-                  key={u.uid}
-                  user={u}
-                  onSetRole={onSetRole}
-                  onSetStatus={onSetStatus}
-                  busy={busy}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
+function statusLabel(status) {
+  if (!status || status === "none") return "—";
+  if (status === "pending") return "Pending";
+  if (status === "approved") return "Approved";
+  if (status === "rejected") return "Rejected";
+  return status;
 }
 
 export default function AdminUsers() {
-  const { user, loading, isAdmin } = useContext(AuthContext);
-  const [usersData, setUsersData] = useState(null);
-  const [busyUid, setBusyUid] = useState(null);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const usersRef = ref(db, "users");
     const unsub = onValue(
       usersRef,
       (snap) => {
-        setUsersData(snap.val() || {});
-        setInitialLoading(false);
+        const val = snap.val() || {};
+        const list = Object.entries(val).map(([uid, u]) => ({
+          uid,
+          email: u.profile?.email || "No email",
+          name: u.profile?.displayName || "No name",
+          level: u.stats?.level || 1,
+          xp: u.stats?.xp || 0,
+          coin: u.stats?.coin || 0,
+          joinedAt: u.createdAt || u.profile?.createdAt || null,
+          lastActiveAt: u.lastActiveAt || null,
+          role: u.role || "guest",
+          joinStatus: u.joinStatus || "none",
+          joinCode: u.joinCode || "",
+        }));
+        setUsers(list);
+        setLoading(false);
       },
       (err) => {
         console.error("Error loading users:", err);
-        setInitialLoading(false);
+        setLoading(false);
       }
     );
+
     return () => unsub();
   }, []);
 
-  async function handleSetRole(user, newRole) {
+  async function setStatus(uid, status) {
     try {
-      setBusyUid(user.uid);
-      await update(ref(db, `users/${user.uid}/profile`), {
-        role: newRole,
-        status: "active",
+      await update(ref(db, `users/${uid}`), {
+        joinStatus: status,
       });
     } catch (e) {
-      console.error("Error set role:", e);
-      alert("Không cập nhật được role, xem console.");
-    } finally {
-      setBusyUid(null);
-    }
-  }
-
-  async function handleSetStatus(user, newStatus) {
-    try {
-      setBusyUid(user.uid);
-      await update(ref(db, `users/${user.uid}/profile`), {
-        status: newStatus,
-      });
-    } catch (e) {
-      console.error("Error set status:", e);
+      console.error("Update status error:", e);
       alert("Không cập nhật được status, xem console.");
-    } finally {
-      setBusyUid(null);
     }
   }
 
-  if (loading || initialLoading) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">Đang tải dữ liệu...</div>
-      </main>
-    );
+  async function approveMember(uid) {
+    try {
+      await update(ref(db, `users/${uid}`), {
+        role: "member",
+        joinStatus: "approved",
+      });
+    } catch (e) {
+      console.error("Approve error:", e);
+      alert("Không duyệt được user, xem console.");
+    }
   }
 
-  if (!user) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">
-          <p>Bạn chưa đăng nhập.</p>
-          <p>
-            <Link to="/login" className="btn">
-              Về trang đăng nhập
-            </Link>
-          </p>
-        </div>
-      </main>
-    );
+  async function removeVip(uid) {
+    try {
+      await update(ref(db, `users/${uid}`), {
+        role: "guest",
+        joinStatus: "none",
+      });
+    } catch (e) {
+      console.error("Remove VIP error:", e);
+      alert("Không cập nhật được user, xem console.");
+    }
   }
 
-  if (!isAdmin) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">
-          <h1>Quản lý User</h1>
-          <p>Bạn không có quyền xem danh sách user.</p>
-        </div>
-      </main>
-    );
-  }
+  const guests = users.filter((u) => u.role === "guest");
+  const members = users.filter((u) => u.role === "member");
+  const associates = users.filter((u) => u.role === "associate");
 
-  const { guests, members, associates } = groupUsers(usersData || {});
+  const renderTable = (title, list, showVipActions) => (
+    <>
+      <h2 style={{ marginTop: "24px", marginBottom: "12px" }}>{title}</h2>
+      {list.length === 0 ? (
+        <p style={{ color: "#666" }}>Chưa có user nào.</p>
+      ) : (
+        <table
+          style={{
+            width: "100%",
+            maxWidth: "900px",
+            borderCollapse: "collapse",
+            marginBottom: "24px",
+          }}
+        >
+          <thead>
+            <tr>
+              <th style={thStyle}>Email</th>
+              <th style={thStyle}>Level</th>
+              <th style={thStyle}>XP</th>
+              <th style={thStyle}>Coin</th>
+              <th style={thStyle}>Joined</th>
+              <th style={thStyle}>Last active</th>
+              <th style={thStyle}>Role</th>
+              <th style={thStyle}>Status</th>
+              {showVipActions && <th style={thStyle}>Action</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((u) => (
+              <tr key={u.uid}>
+                <td style={tdStyle}>{u.email}</td>
+                <td style={tdStyle}>{u.level}</td>
+                <td style={tdStyle}>{u.xp}</td>
+                <td style={tdStyle}>{u.coin}</td>
+                <td style={tdStyle}>{formatDate(u.joinedAt)}</td>
+                <td style={tdStyle}>{formatDate(u.lastActiveAt)}</td>
+                <td style={tdStyle}>{roleLabel(u.role)}</td>
+                <td style={tdStyle}>{statusLabel(u.joinStatus)}</td>
+                {showVipActions && (
+                  <td style={tdStyle}>
+                    {u.role === "guest" && (
+                      <>
+                        <button
+                          style={smallBtn}
+                          onClick={() => setStatus(u.uid, "pending")}
+                        >
+                          Set Pending
+                        </button>
+                        <button
+                          style={smallBtn}
+                          onClick={() => approveMember(u.uid)}
+                        >
+                          Approve
+                        </button>
+                      </>
+                    )}
+                    {u.role !== "guest" && (
+                      <button
+                        style={smallBtnDanger}
+                        onClick={() => removeVip(u.uid)}
+                      >
+                        Remove VIP
+                      </button>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
 
   return (
-    <main className="app-shell">
-      <div className="max-w">
-        <h1>Quản lý User</h1>
-        <p style={{ fontSize: 14, opacity: 0.8 }}>
-          Guest = người chỉ đăng nhập; Member = fan đã được duyệt vào hệ thống;
-          Associate = cộng sự được đào tạo. Bạn có thể nâng / hạ cấp từng người.
-        </p>
+    <div style={{ padding: "32px 16px" }}>
+      <h1>Quản lý User</h1>
+      {loading && <p>Đang tải user...</p>}
 
-        <UserTable
-          title="Guest"
-          users={guests}
-          onSetRole={handleSetRole}
-          onSetStatus={handleSetStatus}
-          busy={!!busyUid}
-        />
-        <UserTable
-          title="Member"
-          users={members}
-          onSetRole={handleSetRole}
-          onSetStatus={handleSetStatus}
-          busy={!!busyUid}
-        />
-        <UserTable
-          title="Associate"
-          users={associates}
-          onSetRole={handleSetRole}
-          onSetStatus={handleSetStatus}
-          busy={!!busyUid}
-        />
-      </div>
-    </main>
+      {renderTable("Guest", guests, true)}
+      {renderTable("Member", members, true)}
+      {renderTable("Associate", associates, true)}
+    </div>
   );
 }
+
+const thStyle = {
+  borderBottom: "1px solid #ddd",
+  textAlign: "left",
+  padding: "8px",
+  fontWeight: 600,
+};
+
+const tdStyle = {
+  borderBottom: "1px solid #f0f0f0",
+  padding: "6px 8px",
+  fontSize: "14px",
+};
+
+const smallBtn = {
+  marginRight: "6px",
+  padding: "4px 8px",
+  fontSize: "12px",
+  cursor: "pointer",
+};
+
+const smallBtnDanger = {
+  ...smallBtn,
+  color: "#a00",
+};
