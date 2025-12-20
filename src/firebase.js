@@ -112,7 +112,7 @@ export async function ensureUserProfile(user) {
 }
 
 // Đăng nhập bằng Google
-export async function loginWithGooglePopup() {
+export async function loginWithGoogle() {
   const res = await signInWithPopup(auth, googleProvider);
   const user = res.user;
   // GỌI ensureUserProfile nhưng giờ đã an toàn, không reset role/status/joinCode
