@@ -8,7 +8,7 @@ import LoginPage from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import JoinGate from "./pages/JoinGate.jsx";
 import AdminPanel from "./pages/AdminPanel.jsx";
-import AdminUsers from "./pages/admin/AdminUsers.jsx";
+import AdminUsers from "./pages/AdminUsers.jsx";
 
 function Home() {
   return (
