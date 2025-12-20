@@ -1,34 +1,32 @@
-// src/pages/Login.jsx
-import React, { useEffect, useState, useContext } from "react";
+﻿// src/pages/Login.jsx
+import React, { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "../AuthContext.jsx";
 import { loginWithGoogle } from "../firebase";
+import { AuthContext } from "../AuthContext";
 
-function LoginPage() {
+export default function LoginPage() {
   const { user, loading } = useContext(AuthContext);
   const [loggingIn, setLoggingIn] = useState(false);
   const navigate = useNavigate();
 
-  // Nếu đã đăng nhập thì tự chuyển sang dashboard
   useEffect(() => {
     if (!loading && user) {
       navigate("/dashboard");
     }
-  }, [loading, user, navigate]);
+  }, [user, loading, navigate]);
 
   const handleLogin = async () => {
     try {
       setLoggingIn(true);
-      await loginWithGoogle();          // dùng đúng hàm trong firebase.js
-      // sau khi login xong, AuthContext sẽ tự cập nhật user
+      await loginWithGoogle();
+      // AuthContext sẽ tự cập nhật user + profile
     } catch (err) {
       console.error(err);
-      alert("Có lỗi khi đăng nhập. Bạn hãy thử lại sau.");
+      alert("Có lỗi khi đăng nhập. Vui lòng thử lại.");
       setLoggingIn(false);
     }
   };
 
-  // Đang kiểm tra trạng thái đăng nhập (lần đầu vào trang)
   if (loading) {
     return (
       <main className="app-shell">
@@ -39,29 +37,27 @@ function LoginPage() {
     );
   }
 
-  // Đã có user (đăng nhập rồi)
   if (user) {
     return (
       <main className="app-shell">
         <div className="max-w">
+          <h1>Đăng nhập Fanpage</h1>
           <p>Bạn đã đăng nhập.</p>
-          <a href="/dashboard" className="btn">
+          <button className="btn" onClick={() => navigate("/dashboard")}>
             Về Dashboard
-          </a>
+          </button>
         </div>
       </main>
     );
   }
 
-  // Chưa đăng nhập
   return (
     <main className="app-shell">
       <div className="max-w">
         <h1>Đăng nhập Fanpage</h1>
-        <p>Đăng nhập Google để vào hệ thống.</p>
-
+        <p>Bấm nút dưới để đăng nhập bằng Google.</p>
         <button
-          className="btn primary mt-3"
+          className="btn primary"
           onClick={handleLogin}
           disabled={loggingIn}
         >
@@ -71,5 +67,3 @@ function LoginPage() {
     </main>
   );
 }
-
-export default LoginPage;
