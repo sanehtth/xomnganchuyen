@@ -1,20 +1,41 @@
-// src/pages/admin/AdminUsers.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { ref, onValue, update } from "firebase/database";
+import { ref, onValue, update, get } from "firebase/database";
 import { db } from "../../firebase";
 
-// Hàm tạo ID thành viên 10 ký tự (loại bỏ các ký tự dễ nhầm như O/0, I/1)
-function generateMemberId() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let result = "";
-  for (let i = 0; i < 10; i++) {
-    const index = Math.floor(Math.random() * chars.length);
-    result += chars[index];
+// =======================
+// TẠO ID KHÔNG TRÙNG LẶP
+// =======================
+
+async function generateUniqueMemberId() {
+
+  // Tạo ID thô:
+  function randomId() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let result = "";
+    for (let i = 0; i < 10; i++) {
+      result += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return result;
   }
-  return result;
+
+  while (true) {
+    const candidate = randomId();
+
+    const snap = await get(ref(db, "users"));
+    const users = snap.val() || {};
+
+    let exists = false;
+
+    Object.values(users).forEach(u => {
+      if (u.joinCode === candidate) exists = true;
+    });
+
+    if (!exists) return candidate;
+  }
 }
 
-// Các lựa chọn lọc theo vai trò / trạng thái
+// ============================================
+
 const ROLE_FILTERS = [
   { value: "all", label: "Tất cả" },
   { value: "pending", label: "Đang chờ duyệt" },
@@ -30,13 +51,13 @@ const STATUS_FILTERS = [
 ];
 
 function AdminUsers() {
+
   const [users, setUsers] = useState([]);
-  const [filterRole, setFilterRole] = useState("pending"); // mặc định show cần duyệt
+  const [filterRole, setFilterRole] = useState("pending");
   const [filterStatus, setFilterStatus] = useState("pending");
   const [selectedIds, setSelectedIds] = useState([]);
   const [loadingAction, setLoadingAction] = useState(false);
 
-  // Lấy danh sách user từ Realtime Database
   useEffect(() => {
     const usersRef = ref(db, "users");
 
@@ -54,7 +75,6 @@ function AdminUsers() {
         xp: value.xp || 0,
         coin: value.coin || 0,
       }));
-      // Sắp theo thời gian đăng ký mới nhất
       list.sort((a, b) => (b.joinedAt || 0) - (a.joinedAt || 0));
       setUsers(list);
     });
@@ -62,9 +82,9 @@ function AdminUsers() {
     return () => unsub();
   }, []);
 
-  // Lọc theo role + status
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
+
       if (filterRole !== "all") {
         if (filterRole === "pending") {
           if (u.status !== "pending") return false;
@@ -79,11 +99,14 @@ function AdminUsers() {
 
       return true;
     });
+
   }, [users, filterRole, filterStatus]);
 
   const toggleSelect = (uid) => {
-    setSelectedIds((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
+    setSelectedIds(prev =>
+      prev.includes(uid)
+        ? prev.filter(id => id !== uid)
+        : [...prev, uid]
     );
   };
 
@@ -94,51 +117,110 @@ function AdminUsers() {
       visibleIds.every((id) => selectedIds.includes(id));
 
     if (allSelected) {
-      // bỏ chọn hết
-      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+      setSelectedIds(prev => prev.filter(id => !visibleIds.includes(id)));
     } else {
-      // chọn tất cả user đang thấy
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+      setSelectedIds(prev => Array.from(new Set([...prev, ...visibleIds])));
     }
   };
 
+  // ========================================
+  // DUYỆT USER → TẠO ID KHÔNG TRÙNG
+  // ========================================
+
   const handleBulkApprove = async (roleTarget) => {
+
     if (selectedIds.length === 0) {
-      alert("Hãy chọn ít nhất 1 user trước khi duyệt.");
+      alert("Chọn ít nhất 1 user.");
       return;
     }
 
     const ok = window.confirm(
       `Xác nhận duyệt ${selectedIds.length} user thành ${roleTarget.toUpperCase()}?`
     );
+
     if (!ok) return;
 
     try {
+
       setLoadingAction(true);
 
       const updates = {};
 
-      selectedIds.forEach((uid) => {
+      for (const uid of selectedIds) {
+
         const user = users.find((u) => u.uid === uid);
-        if (!user) return;
+        if (!user) continue;
 
         updates[`users/${uid}/role`] = roleTarget;
         updates[`users/${uid}/status`] = "approved";
 
-        // Nếu chưa có joinCode thì tạo ID thành viên 10 ký tự
         if (!user.joinCode) {
-          updates[`users/${uid}/joinCode`] = generateMemberId();
+          const id = await generateUniqueMemberId();
+          updates[`users/${uid}/joinCode`] = id;
         }
-      });
+      }
 
       await update(ref(db), updates);
 
       alert("Duyệt thành công.");
+
       setSelectedIds([]);
-    } catch (err) {
-      console.error("Lỗi duyệt user:", err);
-      alert("Có lỗi khi duyệt, thử lại sau.");
+      
+    } catch (e) {
+
+      alert("Có lỗi xảy ra");
+
     } finally {
+
+      setLoadingAction(false);
+
+    }
+  };
+
+  // ========================================
+  // TẠO ID CHO USER ĐÃ DUYỆT NHƯNG THIẾU ID
+  // ========================================
+
+  const createMissingIds = async () => {
+
+    const ok = window.confirm(
+      "Bạn có chắc muốn tạo ID cho toàn bộ user đã duyệt nhưng thiếu ID?"
+    );
+
+    if (!ok) return;
+
+    try {
+
+      setLoadingAction(true);
+
+      const updates = {};
+
+      for (const user of users) {
+
+        const approved = user.status === "approved";
+        const vip = user.role === "member" || user.role === "associate";
+
+        if (approved && vip && !user.joinCode) {
+          const id = await generateUniqueMemberId();
+          updates[`users/${user.uid}/joinCode`] = id;
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        alert("Không có user cần tạo ID.");
+        return;
+      }
+
+      await update(ref(db), updates);
+
+      alert("Đã tạo xong ID cho mọi user thiếu ID.");
+
+    } catch (e) {
+
+      alert("Có lỗi khi tạo lại ID.");
+
+    } finally {
+
       setLoadingAction(false);
     }
   };
@@ -146,10 +228,12 @@ function AdminUsers() {
   return (
     <main className="app-shell">
       <div className="max-w">
+
         <h1>Quản lý User</h1>
 
-        {/* Bộ lọc */}
+        {/* BÁNH ĐIỀU KHIỂN */}
         <div className="flex gap-2 mt-3 mb-3 items-center">
+
           <select
             className="input"
             value={filterRole}
@@ -176,62 +260,62 @@ function AdminUsers() {
 
           <button
             className="btn outline"
-            type="button"
             onClick={toggleSelectAllVisible}
+            disabled={loadingAction}
           >
-            Chọn / bỏ chọn tất cả (đang hiển thị)
+            Chọn / Bỏ chọn hiển thị
           </button>
 
           <button
             className="btn primary"
-            type="button"
-            disabled={loadingAction}
             onClick={() => handleBulkApprove("member")}
+            disabled={loadingAction}
           >
             Duyệt thành Member
           </button>
 
           <button
             className="btn primary"
-            type="button"
-            disabled={loadingAction}
             onClick={() => handleBulkApprove("associate")}
+            disabled={loadingAction}
           >
             Duyệt thành Associate
           </button>
+
+          <button
+            className="btn warning"
+            onClick={createMissingIds}
+            disabled={loadingAction}
+          >
+            Tạo ID cho user đã duyệt
+          </button>
+
         </div>
 
-        {/* Bảng user */}
         <div className="card">
+
           {filteredUsers.length === 0 ? (
-            <p>Không có user phù hợp với bộ lọc.</p>
+            <p>Không có user phù hợp bộ lọc hiện tại.</p>
           ) : (
+
             <table className="table">
+
               <thead>
                 <tr>
-                  <th>
-                    <input
-                      type="checkbox"
-                      onChange={toggleSelectAllVisible}
-                      checked={
-                        filteredUsers.length > 0 &&
-                        filteredUsers.every((u) =>
-                          selectedIds.includes(u.uid)
-                        )
-                      }
-                    />
-                  </th>
+                  <th></th>
                   <th>User</th>
                   <th>Role</th>
                   <th>Status</th>
                   <th>XP</th>
                   <th>Coin</th>
-                  <th>Join ID</th>
+                  <th>ID</th>
                   <th>Joined</th>
-                  <th>Last active</th>
+                  <th>Last Active</th>
                 </tr>
               </thead>
+
               <tbody>
+
                 {filteredUsers.map((u) => (
                   <tr key={u.uid}>
                     <td>
@@ -241,12 +325,12 @@ function AdminUsers() {
                         onChange={() => toggleSelect(u.uid)}
                       />
                     </td>
+
                     <td>
                       <div style={{ fontWeight: 600 }}>{u.displayName}</div>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>
-                        {u.email}
-                      </div>
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>{u.email}</div>
                     </td>
+
                     <td>{u.role}</td>
                     <td>{u.status}</td>
                     <td>{u.xp}</td>
@@ -256,10 +340,15 @@ function AdminUsers() {
                     <td>{u.lastActive || "-"}</td>
                   </tr>
                 ))}
+
               </tbody>
+
             </table>
+
           )}
+
         </div>
+
       </div>
     </main>
   );
