@@ -1,5 +1,4 @@
-// src/pages/JoinGate.jsx
-import React, { useContext, useEffect, useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../AuthContext";
 import { db } from "../firebase";
 import { ref, get, update } from "firebase/database";
@@ -37,7 +36,7 @@ export default function JoinGate() {
     return (
       <main className="app-shell">
         <div className="max-w">
-          <p>Đang tải...</p>
+          <p>Đang kiểm tra đăng nhập...</p>
         </div>
       </main>
     );
@@ -56,19 +55,19 @@ export default function JoinGate() {
     );
   }
 
-  const role = profile?.role || "guest";          // guest | member | associate
-  const status = profile?.status || "none";       // none | pending | approved | rejected
+  const role = profile?.role || "guest";      // guest | member | associate
+  const status = profile?.status || "none";   // none | pending | approved | rejected
 
   const requestVIP = async () => {
     if (!user) return;
 
-    // Nếu đã là member/associate thì không cho gửi nữa
+    // ĐÃ là member/associate rồi thì không cho gửi thêm
     if (role === "member" || role === "associate") {
       alert("Bạn đã là thành viên rồi, không cần gửi yêu cầu nữa.");
       return;
     }
 
-    // Nếu đã gửi yêu cầu và đang pending thì không cho gửi lại
+    // Đã gửi và đang pending thì không cho gửi lại
     if (status === "pending") {
       alert("Bạn đã gửi yêu cầu VIP, vui lòng chờ admin duyệt.");
       return;
@@ -78,7 +77,7 @@ export default function JoinGate() {
       setSubmitting(true);
       const userRef = ref(db, `users/${user.uid}`);
 
-      // CHỈ cập nhật status (và requestedAt), KHÔNG đụng role / joinCode / coin / level / ...
+      // CHỈ cập nhật status (và requestedAt), không đụng role/joinCode/coin/level...
       await update(userRef, {
         status: "pending",
         requestedAt: Date.now(),
@@ -98,11 +97,12 @@ export default function JoinGate() {
 
   return (
     <main className="app-shell">
-      <div className="max-w">
-        <h1>Cổng đăng ký VIP</h1>
+      <div className="max-w" style={{ padding: 30 }}>
+        <h1>Đăng ký thành viên VIP</h1>
+
         <p>Xin chào, {profile?.displayName || user.displayName || user.email}</p>
 
-        {/* Trường hợp đã là member/associate */}
+        {/* ĐÃ LÀ MEMBER/ASSOCIATE */}
         {(role === "member" || role === "associate") && (
           <>
             {role === "member" && (
@@ -125,46 +125,42 @@ export default function JoinGate() {
             )}
 
             {status === "pending" && (
-              <p>Trạng thái đang chờ duyệt (pending).</p>
+              <p>Trạng thái hiện tại: đang chờ admin duyệt.</p>
             )}
           </>
         )}
 
-        {/* Trường hợp vẫn là guest */}
-        {role === "guest" && (
+        {/* CHƯA LÀ MEMBER & CHƯA PENDING → cho gửi yêu cầu */}
+        {status !== "pending" && role === "guest" && (
           <>
-            {status !== "pending" && (
-              <>
-                <p>
-                  Bước 1: Bấm vào link dưới để subscribe kênh Youtube của mình.
-                </p>
-                <a
-                  href="https://www.youtube.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn"
-                >
-                  Bấm để sub Youtube
-                </a>
+            <p>Đầu tiên, hãy sub kênh Youtube của hệ thống rồi bấm nút dưới.</p>
 
-                <br />
-                <br />
+            <a
+              href="https://youtube.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+            >
+              Bấm để sub Youtube
+            </a>
 
-                <p>Bước 2: Bấm nút dưới để gửi yêu cầu VIP:</p>
-                <button
-                  className="btn btn-primary"
-                  onClick={requestVIP}
-                  disabled={submitting}
-                >
-                  {submitting ? "Đang gửi yêu cầu..." : "Gửi yêu cầu VIP"}
-                </button>
-              </>
-            )}
+            <br />
+            <br />
 
-            {status === "pending" && (
-              <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
-            )}
+            <p>Sau đó bấm nút dưới để gửi yêu cầu VIP:</p>
+            <button
+              className="btn btn-primary"
+              onClick={requestVIP}
+              disabled={submitting}
+            >
+              {submitting ? "Đang gửi yêu cầu..." : "Gửi yêu cầu VIP"}
+            </button>
           </>
+        )}
+
+        {/* ĐÃ gửi yêu cầu nhưng vẫn là guest → pending */}
+        {status === "pending" && role === "guest" && (
+          <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
         )}
       </div>
     </main>
