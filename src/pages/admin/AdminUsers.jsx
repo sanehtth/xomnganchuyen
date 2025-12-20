@@ -7,8 +7,6 @@ import { db } from "../../firebase";
 // =======================
 
 async function generateUniqueMemberId() {
-
-  // Tạo ID thô:
   function randomId() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let result = "";
@@ -26,7 +24,7 @@ async function generateUniqueMemberId() {
 
     let exists = false;
 
-    Object.values(users).forEach(u => {
+    Object.values(users).forEach((u) => {
       if (u.joinCode === candidate) exists = true;
     });
 
@@ -46,18 +44,19 @@ const ROLE_FILTERS = [
 
 const STATUS_FILTERS = [
   { value: "all", label: "Tất cả trạng thái" },
+  { value: "none", label: "Chưa gửi yêu cầu" },
   { value: "pending", label: "Đang chờ duyệt" },
   { value: "approved", label: "Đã duyệt" },
 ];
 
 function AdminUsers() {
-
   const [users, setUsers] = useState([]);
-  const [filterRole, setFilterRole] = useState("pending");
-  const [filterStatus, setFilterStatus] = useState("pending");
+  const [filterRole, setFilterRole] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [selectedIds, setSelectedIds] = useState([]);
   const [loadingAction, setLoadingAction] = useState(false);
 
+  // Lấy danh sách user từ Realtime Database
   useEffect(() => {
     const usersRef = ref(db, "users");
 
@@ -68,13 +67,15 @@ function AdminUsers() {
         email: value.email || "",
         displayName: value.displayName || "(No name)",
         role: value.role || "guest",
-        status: value.status || "pending",
+        // status mặc định là "none" = chưa gửi yêu cầu
+        status: value.status || "none",
         joinCode: value.joinCode || "",
-        joinedAt: value.joinedAt || "",
-        lastActive: value.lastActive || "",
+        joinedAt: value.createdAt || "",
+        lastActive: value.lastActiveAt || "",
         xp: value.xp || 0,
         coin: value.coin || 0,
       }));
+      // Sắp theo thời gian đăng ký mới nhất
       list.sort((a, b) => (b.joinedAt || 0) - (a.joinedAt || 0));
       setUsers(list);
     });
@@ -82,9 +83,9 @@ function AdminUsers() {
     return () => unsub();
   }, []);
 
+  // Lọc theo role + status
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-
       if (filterRole !== "all") {
         if (filterRole === "pending") {
           if (u.status !== "pending") return false;
@@ -99,14 +100,11 @@ function AdminUsers() {
 
       return true;
     });
-
   }, [users, filterRole, filterStatus]);
 
   const toggleSelect = (uid) => {
-    setSelectedIds(prev =>
-      prev.includes(uid)
-        ? prev.filter(id => id !== uid)
-        : [...prev, uid]
+    setSelectedIds((prev) =>
+      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
     );
   };
 
@@ -117,18 +115,14 @@ function AdminUsers() {
       visibleIds.every((id) => selectedIds.includes(id));
 
     if (allSelected) {
-      setSelectedIds(prev => prev.filter(id => !visibleIds.includes(id)));
+      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
     } else {
-      setSelectedIds(prev => Array.from(new Set([...prev, ...visibleIds])));
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
     }
   };
 
-  // ========================================
   // DUYỆT USER → TẠO ID KHÔNG TRÙNG
-  // ========================================
-
   const handleBulkApprove = async (roleTarget) => {
-
     if (selectedIds.length === 0) {
       alert("Chọn ít nhất 1 user.");
       return;
@@ -137,17 +131,14 @@ function AdminUsers() {
     const ok = window.confirm(
       `Xác nhận duyệt ${selectedIds.length} user thành ${roleTarget.toUpperCase()}?`
     );
-
     if (!ok) return;
 
     try {
-
       setLoadingAction(true);
 
       const updates = {};
 
       for (const uid of selectedIds) {
-
         const user = users.find((u) => u.uid === uid);
         if (!user) continue;
 
@@ -163,40 +154,28 @@ function AdminUsers() {
       await update(ref(db), updates);
 
       alert("Duyệt thành công.");
-
       setSelectedIds([]);
-      
     } catch (e) {
-
+      console.error(e);
       alert("Có lỗi xảy ra");
-
     } finally {
-
       setLoadingAction(false);
-
     }
   };
 
-  // ========================================
   // TẠO ID CHO USER ĐÃ DUYỆT NHƯNG THIẾU ID
-  // ========================================
-
   const createMissingIds = async () => {
-
     const ok = window.confirm(
       "Bạn có chắc muốn tạo ID cho toàn bộ user đã duyệt nhưng thiếu ID?"
     );
-
     if (!ok) return;
 
     try {
-
       setLoadingAction(true);
 
       const updates = {};
 
       for (const user of users) {
-
         const approved = user.status === "approved";
         const vip = user.role === "member" || user.role === "associate";
 
@@ -214,13 +193,10 @@ function AdminUsers() {
       await update(ref(db), updates);
 
       alert("Đã tạo xong ID cho mọi user thiếu ID.");
-
     } catch (e) {
-
+      console.error(e);
       alert("Có lỗi khi tạo lại ID.");
-
     } finally {
-
       setLoadingAction(false);
     }
   };
@@ -228,12 +204,10 @@ function AdminUsers() {
   return (
     <main className="app-shell">
       <div className="max-w">
-
         <h1>Quản lý User</h1>
 
-        {/* BÁNH ĐIỀU KHIỂN */}
+        {/* Bộ lọc */}
         <div className="flex gap-2 mt-3 mb-3 items-center">
-
           <select
             className="input"
             value={filterRole}
@@ -289,17 +263,14 @@ function AdminUsers() {
           >
             Tạo ID cho user đã duyệt
           </button>
-
         </div>
 
+        {/* Bảng user */}
         <div className="card">
-
           {filteredUsers.length === 0 ? (
             <p>Không có user phù hợp bộ lọc hiện tại.</p>
           ) : (
-
             <table className="table">
-
               <thead>
                 <tr>
                   <th></th>
@@ -313,9 +284,7 @@ function AdminUsers() {
                   <th>Last Active</th>
                 </tr>
               </thead>
-
               <tbody>
-
                 {filteredUsers.map((u) => (
                   <tr key={u.uid}>
                     <td>
@@ -325,12 +294,12 @@ function AdminUsers() {
                         onChange={() => toggleSelect(u.uid)}
                       />
                     </td>
-
                     <td>
                       <div style={{ fontWeight: 600 }}>{u.displayName}</div>
-                      <div style={{ fontSize: 12, opacity: 0.7 }}>{u.email}</div>
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        {u.email}
+                      </div>
                     </td>
-
                     <td>{u.role}</td>
                     <td>{u.status}</td>
                     <td>{u.xp}</td>
@@ -340,15 +309,10 @@ function AdminUsers() {
                     <td>{u.lastActive || "-"}</td>
                   </tr>
                 ))}
-
               </tbody>
-
             </table>
-
           )}
-
         </div>
-
       </div>
     </main>
   );
