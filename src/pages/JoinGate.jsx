@@ -1,94 +1,60 @@
-import { useContext, useEffect, useState } from "react";
-import { AuthContext } from "../AuthContext";
-import { db } from "../firebase";
-import { ref, onValue } from "firebase/database";
+import { useEffect, useState } from "react";
+import { auth, database } from "../firebase";
+import { ref, set, get } from "firebase/database";
+import { nanoid } from "nanoid";
 
 export default function JoinGate() {
-  const { user, loading } = useContext(AuthContext);
-  const [memberCode, setMemberCode] = useState("");
+  const [code, setCode] = useState("");
+  const user = auth.currentUser;
 
-  useEffect(() => {
+  async function generateCode() {
+
     if (!user) return;
 
-    const path = ref(db, "users/" + user.uid + "/code6");
+    const newCode = nanoid(6).toUpperCase();
 
-    onValue(path, (snap) => {
-      if (snap.exists()) {
-        setMemberCode(snap.val());
-      }
-    });
+    await set(ref(database, "users/" + user.uid + "/joinCode"), newCode);
+    await set(ref(database, "users/" + user.uid + "/joinStatus"), "pending");
+
+    setCode(newCode);
+  }
+
+  useEffect(() => {
+    async function loadOldCode() {
+      if (!user) return;
+      const snap = await get(ref(database, "users/" + user.uid + "/joinCode"));
+      if (snap.exists()) setCode(snap.val());
+    }
+    loadOldCode();
   }, [user]);
 
-  if (loading) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">Đang tải dữ liệu...</div>
-      </main>
-    );
-  }
-
-  if (!user) {
-    return (
-      <main className="app-shell">
-        <div className="max-w">
-          <p>Bạn chưa đăng nhập.</p>
-        </div>
-      </main>
-    );
-  }
-
-  const copyCode = () => {
-    navigator.clipboard.writeText(memberCode);
-    alert("Đã copy mã!");
-  };
+  if (!user) return <p>Bạn chưa đăng nhập.</p>;
 
   return (
-    <main className="app-shell">
-      <div className="max-w">
+    <div style={{ padding: 30 }}>
+      <h1>Đăng ký thành viên VIP</h1>
+      <p>Nhấn nút dưới để tạo mã 6 ký tự và gửi cho Admin:</p>
 
-        <h1>Đăng ký thành viên VIP</h1>
-        <br />
+      <button onClick={generateCode}>
+        Tạo hoặc lấy lại mã
+      </button>
 
-        <p style={{ fontSize: "18px" }}>
-          Đầu tiên hãy sub kênh Youtube của hệ thống:
-        </p>
+      {code && (
+        <div>
+          <h3>Mã của bạn:</h3>
+          <input
+            value={code}
+            readOnly
+            style={{ fontSize: 20 }}
+          />
 
-        <a
-          href="https://www.youtube.com/@xomnganchuyen?sub_confirmation=1"
-          target="_blank"
-          rel="noreferrer"
-          className="btn"
-        >
-          ► Bấm để sub Youtube
-        </a>
-
-        <br /><br /><br />
-
-        <p style={{ fontSize: "18px" }}>
-          Đây là mã thành viên của bạn – gửi về admin:
-        </p>
-
-        <input
-          type="text"
-          value={memberCode}
-          readOnly
-          style={{
-            width: "240px",
-            height: "40px",
-            fontSize: "20px",
-            textAlign: "center",
-            marginRight: "6px",
-          }}
-        />
-
-        <button onClick={copyCode} className="btn">
-          Copy mã
-        </button>
-
-        <br /><br />
-
-        <p>Khi admin duyệt, bạn sẽ được mở quyền VIP.</p>
-      </div>
-    </main>
+          <button
+            onClick={() => navigator.clipboard.writeText(code)}
+          >
+            Copy
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
