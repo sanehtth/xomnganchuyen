@@ -1,41 +1,56 @@
-// src/pages/JoinGate.jsx
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../AuthContext";
 import { database } from "../firebase";
 import { ref, get, update } from "firebase/database";
+import { useNavigate } from "react-router-dom";
 
 export default function JoinGate() {
 
   const { user, loading } = useAuth();
   const [role, setRole] = useState("guest");
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) return;
     const userRef = ref(database, `users/${user.uid}`);
     get(userRef).then(snap => {
-      if (snap.exists()) {
-        const data = snap.val();
-        if (data.role) setRole(data.role);
+      if (!snap.exists()) {
+        setRole("guest");
+        return;
       }
+      const data = snap.val();
+      setRole(data.role || "guest");
     });
   }, [user]);
 
   async function requestVIP() {
-    if (!user) return;
+    if (!user) {
+      navigate("/login");
+      return;
+    }
 
     const userRef = ref(database, `users/${user.uid}`);
     await update(userRef, {
       email: user.email,
       displayName: user.displayName || "",
       role: "pending",
-      joinRequestedAt: Date.now()
+      joinRequestedAt: Date.now(),
+      lastActive: Date.now()
     });
 
     setRole("pending");
   }
 
   if (loading) return <div>Đang kiểm tra đăng nhập...</div>;
-  if (!user) return <div>Bạn cần đăng nhập để đăng ký VIP.</div>;
+
+  if (!user) {
+    return (
+      <div style={{ padding: 30 }}>
+        <h1>Đăng ký VIP</h1>
+        <p>Bạn cần đăng nhập để sử dụng tính năng này.</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 30 }}>
@@ -43,19 +58,34 @@ export default function JoinGate() {
 
       {role === "guest" && (
         <>
-          <p>Bấm đăng ký để gửi yêu cầu VIP.</p>
-          <button onClick={requestVIP}>
+          <p>Sub Youtube kênh hệ thống rồi bấm nút dưới để gửi yêu cầu VIP.</p>
+          <a
+            href="https://youtube.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+          >
+            Sub Youtube
+          </a>
+
+          <br /><br />
+
+          <button className="btn btn-primary" onClick={requestVIP}>
             Gửi yêu cầu VIP
           </button>
         </>
       )}
 
       {role === "pending" && (
-        <p>Yêu cầu VIP của bạn đang chờ duyệt.</p>
+        <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
       )}
 
       {role === "member" && (
-        <p>Bạn đã là VIP. Vào Dashboard để xem thông tin.</p>
+        <p>Bạn đã là VIP. Xem ID trong Dashboard.</p>
+      )}
+
+      {role === "associate" && (
+        <p>Bạn là cộng sự của hệ thống.</p>
       )}
     </div>
   );
