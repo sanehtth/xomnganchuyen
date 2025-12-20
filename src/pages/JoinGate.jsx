@@ -4,7 +4,7 @@ import { useAuth } from "../AuthContext";
 import { db } from "../firebase";
 import { ref, get, set } from "firebase/database";
 
-// Hàm tạo mã 6 ký tự: chỉ dùng chữ + số dễ đọc
+// Hàm tạo mã 6 ký tự (chữ + số, dễ đọc)
 function makeJoinCode(length = 6) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
@@ -21,9 +21,10 @@ export default function JoinGate() {
   const [copied, setCopied] = useState(false);
   const [status, setStatus] = useState("");
 
-  // Lấy mã đang có trong DB (nếu có)
+  // Lấy mã đã lưu trong Realtime Database (nếu có)
   useEffect(() => {
     if (!user) return;
+
     const codeRef = ref(db, `users/${user.uid}/meta/joinCode`);
     get(codeRef)
       .then((snap) => {
@@ -80,11 +81,13 @@ export default function JoinGate() {
       setTimeout(() => setCopied(false), 1500);
     } catch (err) {
       console.error("Copy failed:", err);
-      setStatus("Trình duyệt không cho copy tự động, bạn hãy tự bôi đen và copy.");
+      setStatus(
+        "Trình duyệt không cho copy tự động, bạn hãy tự bôi đen mã và copy."
+      );
     }
   }
 
-  const youtubeChannelUrl = "https://www.youtube.com/@xomnganchuyen"; // đổi nếu cần
+  const youtubeChannelUrl = "https://www.youtube.com/@xomnganchuyen"; // đổi link nếu cần
 
   return (
     <div className="app-shell">
@@ -109,9 +112,10 @@ export default function JoinGate() {
             type="text"
             readOnly
             value={joinCode || ""}
-            placeholder="Bấm &quot;Tạo mã&quot; để nhận mã 6 ký tự"
+            placeholder='Bấm "Tạo mã" để nhận mã 6 ký tự'
             className="join-input"
           />
+
           {!joinCode && (
             <button
               className="btn btn-secondary"
@@ -121,6 +125,7 @@ export default function JoinGate() {
               {saving ? "Đang tạo..." : "Tạo mã"}
             </button>
           )}
+
           {joinCode && (
             <button className="btn btn-secondary" onClick={handleCopy}>
               {copied ? "Đã copy" : "Copy mã"}
@@ -130,7 +135,7 @@ export default function JoinGate() {
 
         <p className="hint">
           Khi admin duyệt, bạn sẽ được mở quyền VIP.  
-          Nếu bạn mất mã, hãy vào lại trang này để lấy lại (mã cũ vẫn giữ nguyên).
+          Nếu bạn quên mã, chỉ cần vào lại trang này – hệ thống sẽ tải lại cùng một mã.
         </p>
 
         {status && <p className="status-text">{status}</p>}
