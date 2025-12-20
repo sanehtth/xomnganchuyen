@@ -2,7 +2,7 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
-import { loginWithGooglePopup } from "../firebase";
+import { LoginWithGooglePopup } from "../firebase";
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -17,7 +17,7 @@ function LoginPage() {
 
   const handleLogin = async () => {
     try {
-      await loginWithGooglePopup();
+      await LoginWithGooglePopup();
     } catch (error) {
       console.error("Lỗi đăng nhập:", error);
       alert("Có lỗi khi đăng nhập. Bạn hãy thử lại sau.");
