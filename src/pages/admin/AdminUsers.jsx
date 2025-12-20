@@ -1,8 +1,9 @@
 // src/pages/admin/AdminUsers.jsx
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ref, onValue, update } from "firebase/database";
-import { db } from "../../firebase"; // CHÚ Ý: đường dẫn tới firebase.js
+import { database } from "../../firebase";
 
+// Các lựa chọn lọc theo vai trò / trạng thái
 const ROLE_FILTERS = [
   { value: "all", label: "Tất cả" },
   { value: "pending", label: "Đang chờ duyệt" },
@@ -11,9 +12,16 @@ const ROLE_FILTERS = [
   { value: "associate", label: "Associate (Cộng sự)" },
 ];
 
+const STATUS_FILTERS = [
+  { value: "all", label: "Tất cả trạng thái" },
+  { value: "pending", label: "Đang chờ duyệt" },
+  { value: "approved", label: "Đã duyệt" },
+];
+
 function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [filterRole, setFilterRole] = useState("pending"); // mặc định show cần duyệt
+  const [filterStatus, setFilterStatus] = useState("pending");
   const [selectedIds, setSelectedIds] = useState([]);
   const [loadingAction, setLoadingAction] = useState(false);
 
@@ -21,237 +29,220 @@ function AdminUsers() {
   useEffect(() => {
     const usersRef = ref(database, "users");
 
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      const list = Object.entries(data).map(([id, u]) => ({
-        id,
-        email: u.email || "",
-        displayName: u.displayName || "",
-        role: u.role || "guest",
-        status: u.status || "",
-        memberId: u.memberId || "",
-        level: u.level ?? 1,
-        xp: u.xp ?? 0,
-        coin: u.coin ?? 0,
-        joinedAt: u.joinedAt || null,
-        lastActive: u.lastActive || null,
+    const unsub = onValue(usersRef, (snap) => {
+      const data = snap.val() || {};
+      const list = Object.entries(data).map(([uid, value]) => ({
+        uid,
+        email: value.email || "",
+        displayName: value.displayName || "(No name)",
+        role: value.role || "guest",
+        status: value.status || "pending",
+        joinCode: value.joinCode || "",
+        joinedAt: value.joinedAt || "",
+        lastActive: value.lastActive || "",
+        xp: value.xp || 0,
+        coin: value.coin || 0,
       }));
+      // Sắp theo thời gian đăng ký mới nhất
+      list.sort((a, b) => (b.joinedAt || 0) - (a.joinedAt || 0));
       setUsers(list);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
-  // Lọc user theo nhóm
+  // Lọc theo role + status
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      switch (filterRole) {
-        case "pending":
-          return u.role === "pending" || u.status === "pending";
-        case "guest":
-          return u.role === "guest";
-        case "member":
-          return u.role === "member";
-        case "associate":
-          return u.role === "associate";
-        case "all":
-        default:
-          return true;
+      if (filterRole !== "all") {
+        if (filterRole === "pending") {
+          if (u.status !== "pending") return false;
+        } else if (u.role !== filterRole) {
+          return false;
+        }
       }
-    });
-  }, [users, filterRole]);
 
-  // Chọn / bỏ chọn 1 user
-  const toggleSelect = (id) => {
+      if (filterStatus !== "all" && u.status !== filterStatus) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [users, filterRole, filterStatus]);
+
+  const toggleSelect = (uid) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
     );
   };
 
-  // Chọn / bỏ chọn tất cả user đang hiển thị
-  const toggleSelectAll = () => {
-    if (filteredUsers.length === 0) return;
-
-    const currentIds = filteredUsers.map((u) => u.id);
+  const toggleSelectAllVisible = () => {
+    const visibleIds = filteredUsers.map((u) => u.uid);
     const allSelected =
-      currentIds.every((id) => selectedIds.includes(id)) &&
-      selectedIds.length === currentIds.length;
+      visibleIds.length > 0 &&
+      visibleIds.every((id) => selectedIds.includes(id));
 
     if (allSelected) {
-      setSelectedIds([]);
+      // bỏ chọn hết
+      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
     } else {
-      setSelectedIds(currentIds);
+      // chọn tất cả user đang thấy
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
     }
   };
 
-  // Hàm chung: cập nhật role/status nhiều user 1 lần
-  const bulkUpdateRole = async (newRole, newStatus) => {
+  const handleBulkApprove = async (roleTarget) => {
     if (selectedIds.length === 0) {
-      alert("Bạn chưa chọn user nào.");
+      alert("Hãy chọn ít nhất 1 user trước khi duyệt.");
       return;
     }
 
-    const confirmText =
-      newRole === "guest"
-        ? `Đưa ${selectedIds.length} user về Guest?`
-        : `Duyệt ${selectedIds.length} user thành ${newRole.toUpperCase()}?`;
-
-    if (!window.confirm(confirmText)) return;
+    const ok = window.confirm(
+      `Xác nhận duyệt ${selectedIds.length} user thành ${roleTarget.toUpperCase()}?`
+    );
+    if (!ok) return;
 
     try {
       setLoadingAction(true);
 
       const updates = {};
-      selectedIds.forEach((id) => {
-        const basePath = `users/${id}`;
-        updates[`${basePath}/role`] = newRole;
-        updates[`${basePath}/status`] = newStatus;
-
-        // Nếu duyệt member / associate thì gán memberId (10 ký tự) nếu chưa có
-        if (newRole === "member" || newRole === "associate") {
-          const user = users.find((u) => u.id === id);
-          if (user && !user.memberId) {
-            // tạm dùng 10 ký tự cuối của uid (hoặc id)
-            const raw = (user.uid || user.id || "").toString();
-            updates[`${basePath}/memberId`] = raw.slice(-10);
-          }
-        }
+      selectedIds.forEach((uid) => {
+        updates[`users/${uid}/role`] = roleTarget;
+        updates[`users/${uid}/status`] = "approved";
       });
 
       await update(ref(database), updates);
+
+      alert("Duyệt thành công.");
       setSelectedIds([]);
-      alert("Cập nhật thành công.");
     } catch (err) {
-      console.error(err);
-      alert("Có lỗi khi cập nhật. Xem console.");
+      console.error("Lỗi duyệt user:", err);
+      alert("Có lỗi khi duyệt, thử lại sau.");
     } finally {
       setLoadingAction(false);
     }
   };
 
-  const handleApproveMember = () => bulkUpdateRole("member", "approved");
-  const handleApproveAssociate = () => bulkUpdateRole("associate", "approved");
-  const handleSetGuest = () => bulkUpdateRole("guest", "guest");
-
   return (
-    <div style={{ padding: "32px" }}>
-      <h1 style={{ marginBottom: 8 }}>Quản lý User</h1>
-      <p>Chọn nhóm để xem và dùng checkbox + nút duyệt để đổi quyền.</p>
+    <main className="app-shell">
+      <div className="max-w">
+        <h1>Quản lý User</h1>
 
-      {/* Thanh filter + action */}
-      <div
-        style={{
-          marginTop: 16,
-          marginBottom: 16,
-          display: "flex",
-          gap: 16,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <label>
-          Nhóm hiển thị:{" "}
+        {/* Bộ lọc */}
+        <div className="flex gap-2 mt-3 mb-3 items-center">
           <select
+            className="input"
             value={filterRole}
-            onChange={(e) => {
-              setFilterRole(e.target.value);
-              setSelectedIds([]);
-            }}
+            onChange={(e) => setFilterRole(e.target.value)}
           >
-            {ROLE_FILTERS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
+            {ROLE_FILTERS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
               </option>
             ))}
           </select>
-        </label>
 
-        <span>Đã chọn: {selectedIds.length}</span>
-
-        <button onClick={toggleSelectAll} disabled={filteredUsers.length === 0}>
-          {filteredUsers.length > 0 &&
-          filteredUsers.every((u) => selectedIds.includes(u.id)) &&
-          selectedIds.length === filteredUsers.length
-            ? "Bỏ chọn tất cả"
-            : "Chọn tất cả"}
-        </button>
-
-        <button
-          onClick={handleApproveMember}
-          disabled={selectedIds.length === 0 || loadingAction}
-        >
-          Duyệt thành Member
-        </button>
-
-        <button
-          onClick={handleApproveAssociate}
-          disabled={selectedIds.length === 0 || loadingAction}
-        >
-          Duyệt thành Associate
-        </button>
-
-        <button
-          onClick={handleSetGuest}
-          disabled={selectedIds.length === 0 || loadingAction}
-        >
-          Đưa về Guest
-        </button>
-      </div>
-
-      {/* Bảng user */}
-      {filteredUsers.length === 0 ? (
-        <p>Không có user nào trong nhóm này.</p>
-      ) : (
-        <table border="1" cellPadding="6" cellSpacing="0">
-          <thead>
-            <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  onChange={toggleSelectAll}
-                  checked={
-                    filteredUsers.length > 0 &&
-                    filteredUsers.every((u) => selectedIds.includes(u.id)) &&
-                    selectedIds.length === filteredUsers.length
-                  }
-                />
-              </th>
-              <th>Email</th>
-              <th>Tên</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Member ID</th>
-              <th>Level</th>
-              <th>XP</th>
-              <th>Coin</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.map((u) => (
-              <tr key={u.id}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(u.id)}
-                    onChange={() => toggleSelect(u.id)}
-                  />
-                </td>
-                <td>{u.email}</td>
-                <td>{u.displayName}</td>
-                <td>{u.role}</td>
-                <td>{u.status || "-"}</td>
-                <td>{u.memberId || "-"}</td>
-                <td>{u.level}</td>
-                <td>{u.xp}</td>
-                <td>{u.coin}</td>
-              </tr>
+          <select
+            className="input"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            {STATUS_FILTERS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
             ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+          </select>
+
+          <button
+            className="btn outline"
+            type="button"
+            onClick={toggleSelectAllVisible}
+          >
+            Chọn / bỏ chọn tất cả (đang hiển thị)
+          </button>
+
+          <button
+            className="btn primary"
+            type="button"
+            disabled={loadingAction}
+            onClick={() => handleBulkApprove("member")}
+          >
+            Duyệt thành Member
+          </button>
+
+          <button
+            className="btn primary"
+            type="button"
+            disabled={loadingAction}
+            onClick={() => handleBulkApprove("associate")}
+          >
+            Duyệt thành Associate
+          </button>
+        </div>
+
+        {/* Bảng user */}
+        <div className="card">
+          {filteredUsers.length === 0 ? (
+            <p>Không có user phù hợp với bộ lọc.</p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      onChange={toggleSelectAllVisible}
+                      checked={
+                        filteredUsers.length > 0 &&
+                        filteredUsers.every((u) =>
+                          selectedIds.includes(u.uid)
+                        )
+                      }
+                    />
+                  </th>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>XP</th>
+                  <th>Coin</th>
+                  <th>Join ID</th>
+                  <th>Joined</th>
+                  <th>Last active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map((u) => (
+                  <tr key={u.uid}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(u.uid)}
+                        onChange={() => toggleSelect(u.uid)}
+                      />
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{u.displayName}</div>
+                      <div style={{ fontSize: 12, opacity: 0.8 }}>
+                        {u.email}
+                      </div>
+                    </td>
+                    <td>{u.role}</td>
+                    <td>{u.status}</td>
+                    <td>{u.xp}</td>
+                    <td>{u.coin}</td>
+                    <td>{u.joinCode || "-"}</td>
+                    <td>{u.joinedAt || "-"}</td>
+                    <td>{u.lastActive || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </main>
   );
 }
 
 export default AdminUsers;
-
