@@ -1,45 +1,43 @@
+﻿// src/pages/admin/AdminUsers.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { ref, onValue, update, get } from "firebase/database";
-import { db } from "../../firebase";
+import {
+  collection,
+  getDocs,
+  onSnapshot,
+  doc,
+  updateDoc,
+  writeBatch,
+} from "firebase/firestore";
+import { firestore } from "../../firebase";
+import { useAuth } from "../../AuthContext";
 
-// =======================
-// TẠO ID KHÔNG TRÙNG LẶP
-// =======================
+// Tạo ID 10 ký tự không trùng joinCode
+async function generateUniqueMemberId(existingCodes) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-async function generateUniqueMemberId() {
   function randomId() {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let result = "";
+    let res = "";
     for (let i = 0; i < 10; i++) {
-      result += chars[Math.floor(Math.random() * chars.length)];
+      res += chars[Math.floor(Math.random() * chars.length)];
     }
-    return result;
+    return res;
   }
 
+  let candidate;
+  const used = new Set(existingCodes || []);
+
   while (true) {
-    const candidate = randomId();
-
-    const snap = await get(ref(db, "users"));
-    const users = snap.val() || {};
-
-    let exists = false;
-
-    Object.values(users).forEach((u) => {
-      if (u.joinCode === candidate) exists = true;
-    });
-
-    if (!exists) return candidate;
+    candidate = randomId();
+    if (!used.has(candidate)) return candidate;
   }
 }
 
-// ============================================
-
 const ROLE_FILTERS = [
   { value: "all", label: "Tất cả" },
-  { value: "pending", label: "Đang chờ duyệt" },
   { value: "guest", label: "Guest" },
   { value: "member", label: "Member (VIP)" },
   { value: "associate", label: "Associate (Cộng sự)" },
+  { value: "admin", label: "Admin" },
 ];
 
 const STATUS_FILTERS = [
@@ -47,60 +45,61 @@ const STATUS_FILTERS = [
   { value: "none", label: "Chưa gửi yêu cầu" },
   { value: "pending", label: "Đang chờ duyệt" },
   { value: "approved", label: "Đã duyệt" },
+  { value: "rejected", label: "Từ chối" },
 ];
 
-function AdminUsers() {
+export default function AdminUsers() {
+  const { isAdmin } = useAuth();
   const [users, setUsers] = useState([]);
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [loadingAction, setLoadingAction] = useState(false);
 
-  // Lấy danh sách user từ Realtime Database
   useEffect(() => {
-    const usersRef = ref(db, "users");
+    if (!isAdmin) return;
 
-    const unsub = onValue(usersRef, (snap) => {
-      const data = snap.val() || {};
-      const list = Object.entries(data).map(([uid, value]) => ({
-        uid,
-        email: value.email || "",
-        displayName: value.displayName || "(No name)",
-        role: value.role || "guest",
-        // status mặc định là "none" = chưa gửi yêu cầu
-        status: value.status || "none",
-        joinCode: value.joinCode || "",
-        joinedAt: value.createdAt || "",
-        lastActive: value.lastActiveAt || "",
-        xp: value.xp || 0,
-        coin: value.coin || 0,
-      }));
-      // Sắp theo thời gian đăng ký mới nhất
-      list.sort((a, b) => (b.joinedAt || 0) - (a.joinedAt || 0));
+    const usersCol = collection(firestore, "users");
+    const unsub = onSnapshot(usersCol, (snap) => {
+      const list = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        list.push({
+          id: docSnap.id,
+          ...data,
+        });
+      });
+
+      // sort by createdAt desc
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setUsers(list);
+      setLoading(false);
     });
 
     return () => unsub();
-  }, []);
+  }, [isAdmin]);
 
-  // Lọc theo role + status
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      if (filterRole !== "all") {
-        if (filterRole === "pending") {
-          if (u.status !== "pending") return false;
-        } else if (u.role !== filterRole) {
-          return false;
-        }
-      }
+      if (filterRole !== "all" && u.role !== filterRole) return false;
+      if (filterStatus !== "all" && u.status !== filterStatus) return false;
 
-      if (filterStatus !== "all" && u.status !== filterStatus) {
-        return false;
+      if (search.trim()) {
+        const s = search.trim().toLowerCase();
+        const haystack =
+          (u.displayName || "").toLowerCase() +
+          " " +
+          (u.email || "").toLowerCase() +
+          " " +
+          (u.joinCode || "").toLowerCase();
+        if (!haystack.includes(s)) return false;
       }
 
       return true;
     });
-  }, [users, filterRole, filterStatus]);
+  }, [users, filterRole, filterStatus, search]);
 
   const toggleSelect = (uid) => {
     setSelectedIds((prev) =>
@@ -109,7 +108,7 @@ function AdminUsers() {
   };
 
   const toggleSelectAllVisible = () => {
-    const visibleIds = filteredUsers.map((u) => u.uid);
+    const visibleIds = filteredUsers.map((u) => u.id);
     const allSelected =
       visibleIds.length > 0 &&
       visibleIds.every((id) => selectedIds.includes(id));
@@ -117,11 +116,13 @@ function AdminUsers() {
     if (allSelected) {
       setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+      setSelectedIds((prev) =>
+        Array.from(new Set([...prev, ...visibleIds]))
+      );
     }
   };
 
-  // DUYỆT USER → TẠO ID KHÔNG TRÙNG
+  // DUYỆT USER THÀNH MEMBER/ASSOCIATE
   const handleBulkApprove = async (roleTarget) => {
     if (selectedIds.length === 0) {
       alert("Chọn ít nhất 1 user.");
@@ -136,80 +137,128 @@ function AdminUsers() {
     try {
       setLoadingAction(true);
 
-      const updates = {};
+      // Lấy toàn bộ joinCode hiện có để tránh trùng
+      const allJoinCodes = users
+        .map((u) => u.joinCode)
+        .filter((c) => !!c);
+
+      const batch = writeBatchWithLimit();
 
       for (const uid of selectedIds) {
-        const user = users.find((u) => u.uid === uid);
-        if (!user) continue;
+        const u = users.find((x) => x.id === uid);
+        if (!u) continue;
 
-        updates[`users/${uid}/role`] = roleTarget;
-        updates[`users/${uid}/status`] = "approved";
+        const ref = doc(firestore, "users", uid);
 
-        if (!user.joinCode) {
-          const id = await generateUniqueMemberId();
-          updates[`users/${uid}/joinCode`] = id;
+        // Nếu chưa có joinCode -> tạo mới
+        let joinCode = u.joinCode || "";
+        if (!joinCode) {
+          joinCode = await generateUniqueMemberId(allJoinCodes);
+          allJoinCodes.push(joinCode);
         }
+
+        batch.update(ref, {
+          role: roleTarget,
+          status: "approved",
+          joinCode,
+        });
       }
 
-      await update(ref(db), updates);
-
+      await batch.commit();
       alert("Duyệt thành công.");
       setSelectedIds([]);
     } catch (e) {
       console.error(e);
-      alert("Có lỗi xảy ra");
+      alert("Có lỗi xảy ra khi duyệt user.");
     } finally {
       setLoadingAction(false);
     }
   };
 
-  // TẠO ID CHO USER ĐÃ DUYỆT NHƯNG THIẾU ID
-  const createMissingIds = async () => {
+  // TẠO ID CHO USER ĐÃ DUYỆT NHƯNG THIẾU joinCode
+  const handleCreateMissingIds = async () => {
     const ok = window.confirm(
-      "Bạn có chắc muốn tạo ID cho toàn bộ user đã duyệt nhưng thiếu ID?"
+      "Tạo ID cho tất cả user đã duyệt nhưng thiếu ID?"
     );
     if (!ok) return;
 
     try {
       setLoadingAction(true);
 
-      const updates = {};
+      const allJoinCodes = users
+        .map((u) => u.joinCode)
+        .filter((c) => !!c);
 
-      for (const user of users) {
-        const approved = user.status === "approved";
-        const vip = user.role === "member" || user.role === "associate";
+      const batch = writeBatchWithLimit();
+      let count = 0;
 
-        if (approved && vip && !user.joinCode) {
-          const id = await generateUniqueMemberId();
-          updates[`users/${user.uid}/joinCode`] = id;
+      for (const u of users) {
+        const approved =
+          u.status === "approved" &&
+          (u.role === "member" || u.role === "associate" || u.role === "admin");
+
+        if (approved && !u.joinCode) {
+          const joinCode = await generateUniqueMemberId(allJoinCodes);
+          allJoinCodes.push(joinCode);
+          const ref = doc(firestore, "users", u.id);
+          batch.update(ref, { joinCode });
+          count++;
         }
       }
 
-      if (Object.keys(updates).length === 0) {
-        alert("Không có user cần tạo ID.");
+      if (count === 0) {
+        alert("Không có user nào thiếu ID.");
         return;
       }
 
-      await update(ref(db), updates);
-
-      alert("Đã tạo xong ID cho mọi user thiếu ID.");
+      await batch.commit();
+      alert(`Đã tạo ID cho ${count} user.`);
     } catch (e) {
       console.error(e);
-      alert("Có lỗi khi tạo lại ID.");
+      alert("Có lỗi khi tạo ID.");
     } finally {
       setLoadingAction(false);
     }
   };
+
+  if (!isAdmin) {
+    return (
+      <main className="app-shell">
+        <div className="max-w">
+          <h1>Admin</h1>
+          <p>Bạn không có quyền truy cập trang này.</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (loading) {
+    return (
+      <main className="app-shell">
+        <div className="max-w">
+          <p>Đang tải danh sách user...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
       <div className="max-w">
         <h1>Quản lý User</h1>
 
-        {/* Bộ lọc */}
-        <div className="flex gap-2 mt-3 mb-3 items-center">
+        {/* Bộ lọc & action */}
+        <div
+          className="filters"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            margin: "16px 0",
+            alignItems: "center",
+          }}
+        >
           <select
-            className="input"
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
           >
@@ -221,7 +270,6 @@ function AdminUsers() {
           </select>
 
           <select
-            className="input"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
           >
@@ -232,16 +280,18 @@ function AdminUsers() {
             ))}
           </select>
 
-          <button
-            className="btn outline"
-            onClick={toggleSelectAllVisible}
-            disabled={loadingAction}
-          >
-            Chọn / Bỏ chọn hiển thị
+          <input
+            type="text"
+            placeholder="Tìm tên / email / ID"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          <button onClick={toggleSelectAllVisible} disabled={loadingAction}>
+            Chọn / Bỏ chọn tất cả
           </button>
 
           <button
-            className="btn primary"
             onClick={() => handleBulkApprove("member")}
             disabled={loadingAction}
           >
@@ -249,7 +299,6 @@ function AdminUsers() {
           </button>
 
           <button
-            className="btn primary"
             onClick={() => handleBulkApprove("associate")}
             disabled={loadingAction}
           >
@@ -257,8 +306,7 @@ function AdminUsers() {
           </button>
 
           <button
-            className="btn warning"
-            onClick={createMissingIds}
+            onClick={handleCreateMissingIds}
             disabled={loadingAction}
           >
             Tạo ID cho user đã duyệt
@@ -268,30 +316,41 @@ function AdminUsers() {
         {/* Bảng user */}
         <div className="card">
           {filteredUsers.length === 0 ? (
-            <p>Không có user phù hợp bộ lọc hiện tại.</p>
+            <p>Không có user phù hợp với bộ lọc hiện tại.</p>
           ) : (
             <table className="table">
               <thead>
                 <tr>
-                  <th></th>
+                  <th>
+                    <input
+                      type="checkbox"
+                      onChange={toggleSelectAllVisible}
+                      checked={
+                        filteredUsers.length > 0 &&
+                        filteredUsers.every((u) =>
+                          selectedIds.includes(u.id)
+                        )
+                      }
+                    />
+                  </th>
                   <th>User</th>
                   <th>Role</th>
                   <th>Status</th>
                   <th>XP</th>
                   <th>Coin</th>
+                  <th>Level</th>
                   <th>ID</th>
-                  <th>Joined</th>
                   <th>Last Active</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((u) => (
-                  <tr key={u.uid}>
+                  <tr key={u.id}>
                     <td>
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(u.uid)}
-                        onChange={() => toggleSelect(u.uid)}
+                        checked={selectedIds.includes(u.id)}
+                        onChange={() => toggleSelect(u.id)}
                       />
                     </td>
                     <td>
@@ -302,11 +361,15 @@ function AdminUsers() {
                     </td>
                     <td>{u.role}</td>
                     <td>{u.status}</td>
-                    <td>{u.xp}</td>
-                    <td>{u.coin}</td>
+                    <td>{u.stats?.xp ?? 0}</td>
+                    <td>{u.stats?.coin ?? 0}</td>
+                    <td>{u.stats?.level ?? 1}</td>
                     <td>{u.joinCode || "-"}</td>
-                    <td>{u.joinedAt || "-"}</td>
-                    <td>{u.lastActive || "-"}</td>
+                    <td>
+                      {u.lastActiveAt
+                        ? new Date(u.lastActiveAt).toLocaleString()
+                        : "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -318,4 +381,9 @@ function AdminUsers() {
   );
 }
 
-export default AdminUsers;
+// Firestore không có batch size quá nhỏ, nhưng để an toàn
+// mình viết helper tạo 1 batch mới cho mỗi thao tác (simple).
+function writeBatchWithLimit() {
+  const { writeBatch } = require("firebase/firestore");
+  return writeBatch(firestore);
+}
