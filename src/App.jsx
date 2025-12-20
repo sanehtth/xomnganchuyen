@@ -34,10 +34,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home/>} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<Dashboard/>} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
 
-          {/* admin */}
-          <Route path="/admin/users" element={<AdminUsers/>} />
 
           {/* Join gate */}
           <Route path="/join-gate" element={<JoinGate/>} />
