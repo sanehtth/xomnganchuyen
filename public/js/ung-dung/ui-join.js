@@ -49,19 +49,41 @@ export function renderJoinGate(container, firebaseUser, profile, onProfileUpdate
   // Rejected hoac none
   const isRejected = p.status === "rejected";
 
+  //=============== dang ky member ==============================
   container.innerHTML = `
-    <p>Ban hien la <strong>${p.role}</strong>, status: <strong>${p.status}</strong>.</p>
-    <p>
-      ${
-        isRejected
-          ? "Yeu cau truoc day cua ban da bi tu choi. Neu da dat du dieu kien, ban co the gui lai yeu cau."
-          : "Neu ban da hoan thanh cac dieu kien (sub kenh, tham gia hoat dong...), hay gui yeu cau de tro thanh member."
-      }
-    </p>
-    <button id="join-request-btn" class="btn btn-primary">
-      ${isRejected ? "Gui lai yeu cau thanh vien" : "Gui yeu cau tro thanh member"}
-    </button>
-  `;
+<p>Bạn hiện là <strong>${p.role}</strong>, status: <strong>${p.status}</strong>.</p>
+
+<p>Nếu bạn đã hoàn thành các điều kiện (sub kênh, tham gia hoạt động,...), hãy làm theo các bước bên dưới để gửi yêu cầu thành member.</p>
+
+<hr>
+
+<div style="margin:12px 0;">
+  <h4>Bước 1: Sub kênh YouTube</h4>
+  <button id="subChannelBtn" class="btn btn-secondary">
+    Sub kênh YouTube
+  </button>
+  <small style="display:block;margin-top:4px;color:#666;">
+    Bấm nút này để mở kênh YouTube của hệ thống.
+  </small>
+</div>
+
+<div style="margin:12px 0;">
+  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+    <input type="checkbox" id="subscribedCheckbox">
+    Tôi đã sub kênh
+  </label>
+</div>
+
+<hr>
+
+<button id="join-request-btn" class="btn btn-primary" disabled>
+  ${isRejected ? "Gửi lại yêu cầu" : "Gửi yêu cầu thành viên"}
+</button>
+
+<p id="join-helper" style="margin-top:8px;color:#666;"></p>
+`;
+
+//========================= het doan dang ky member ===============
 
   const btn = document.getElementById("join-request-btn");
   if (btn) {
