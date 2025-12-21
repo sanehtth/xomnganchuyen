@@ -1,27 +1,41 @@
 // src/pages/admin/AdminPanel.jsx
-import React from "react";
-import { Link } from "react-router-dom";
-import { useAuth } from "../../AuthContext.jsx";
+
+import { Link, Outlet } from "react-router-dom";
+import { useAuth } from "../../AuthContext";
 
 export default function AdminPanel() {
-  const { user } = useAuth();
+  const { isAdmin, firebaseUser } = useAuth();
+
+  if (!isAdmin) {
+    return (
+      <main className="app-shell">
+        <h1>Admin</h1>
+        <p>Bạn không có quyền truy cập khu admin.</p>
+        <Link to="/dashboard" className="btn btn-primary">
+          Về dashboard
+        </Link>
+      </main>
+    );
+  }
 
   return (
-    <div className="card">
-      <h1>Admin tools</h1>
-      <p className="mt-2">
-        Xin chào admin, <strong>{user?.displayName || user?.email}</strong>
+    <main className="app-shell">
+      <h1>Admin Panel</h1>
+      <p>
+        Xin chào admin{" "}
+        {firebaseUser?.displayName || firebaseUser?.email || "User"}
       </p>
 
-      <div className="mt-3">
-        <h3>Quản lý</h3>
-        <ul>
-          <li>
-            <Link to="/admin/users">Quản lý user</Link>
-          </li>
-          {/* Sau này thêm: báo cáo, tool, v.v. */}
-        </ul>
+      <nav className="mt-3" style={{ display: "flex", gap: 12 }}>
+        <Link to="/admin/users" className="btn btn-primary">
+          Quản lý user
+        </Link>
+        {/* sau này thêm: báo cáo, tools, ... */}
+      </nav>
+
+      <div className="mt-4">
+        <Outlet />
       </div>
-    </div>
+    </main>
   );
 }
