@@ -1,43 +1,45 @@
-// ví dụ trong Navbar.jsx
+// src/components/Navbar.jsx
+import React from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../AuthContext";
-import { useTheme } from "../theme"; // nếu bạn có ThemeContext riêng
+import { useAuth } from "../AuthContext.jsx";
+import { useTheme } from "../theme.jsx";
 
 export default function Navbar() {
-  const { user, isAdmin, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme(); // nếu có
+  const { isLoggedIn, isAdmin, user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   return (
-    <header style={{ padding: 16 }}>
-      <Link to="/">Fanpage Lab</Link>
+    <header className="navbar">
+      <div className="nav-title">Fanpage Lab</div>
 
-      {user && (
-        <>
-          <Link to="/dashboard" style={{ marginLeft: 12 }}>
-            Dashboard
-          </Link>
+      <div className="nav-links">
+        <button className="btn btn-ghost" onClick={toggleTheme}>
+          Theme: {theme === "light" ? "Light" : "Dark"}
+        </button>
 
-          {isAdmin && (
-            <Link to="/admin/users" style={{ marginLeft: 12 }}>
-              Admin tools
+        {isLoggedIn && (
+          <>
+            <span style={{ fontSize: 12 }}>Hi, {user?.displayName}</span>
+            <Link to="/dashboard" className="btn btn-primary">
+              Dashboard
             </Link>
-          )}
+            {isAdmin && (
+              <Link to="/admin" className="btn">
+                Admin tools
+              </Link>
+            )}
+            <button className="btn btn-ghost" onClick={logout}>
+              Logout
+            </button>
+          </>
+        )}
 
-          <button onClick={toggleTheme} style={{ marginLeft: 12 }}>
-            Đổi theme
-          </button>
-
-          <button onClick={logout} style={{ marginLeft: 12 }}>
-            Logout
-          </button>
-        </>
-      )}
-
-      {!user && (
-        <Link to="/login" style={{ marginLeft: 12 }}>
-          Đăng nhập
-        </Link>
-      )}
+        {!isLoggedIn && (
+          <Link to="/login" className="btn btn-primary">
+            Đăng nhập
+          </Link>
+        )}
+      </div>
     </header>
   );
 }
