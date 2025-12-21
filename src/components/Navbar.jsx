@@ -1,58 +1,46 @@
-// src/components/Navbar.jsx
-
+import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { useTheme } from "../theme";
 
 export default function Navbar() {
-  const { firebaseUser, isAdmin, logout } = useAuth();
+  const { firebaseUser, profile, logout, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header
+    <nav
       style={{
+        padding: "8px 16px",
+        borderBottom: "1px solid #ddd",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "12px 24px",
-        borderBottom: "1px solid #ddd",
-        marginBottom: 24,
+        gap: 16,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        <Link to="/" style={{ fontWeight: 700, textDecoration: "none" }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        <Link to="/" style={{ fontWeight: "bold" }}>
           Fanpage Lab
         </Link>
-
-        {firebaseUser && (
-          <>
-            <Link to="/dashboard">Dashboard</Link>
-            <Link to="/join">Cổng thành viên</Link>
-            {isAdmin && <Link to="/admin">Admin</Link>}
-          </>
-        )}
+        <Link to="/dashboard">Dashboard</Link>
+        <Link to="/join">Cổng thành viên</Link>
+        {isAdmin && <Link to="/admin/users">Admin</Link>}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button onClick={toggleTheme} className="btn">
-          Theme: {theme === "light" ? "Light" : "Dark"}
-        </button>
-
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <span>Theme: {theme === "light" ? "Light" : "Dark"}</span>
+        <button onClick={toggleTheme}>Đổi theme</button>
         {firebaseUser ? (
           <>
-            <span style={{ fontSize: 14 }}>
-              Xin chào, {firebaseUser.displayName || firebaseUser.email}
+            <span>
+              Xin chào, {profile?.displayName || firebaseUser.displayName}
             </span>
-            <button onClick={logout} className="btn">
-              Logout
-            </button>
+            <button onClick={logout}>Logout</button>
           </>
         ) : (
-          <Link to="/login" className="btn btn-primary">
-            Đăng nhập
-          </Link>
+          <Link to="/login">Đăng nhập</Link>
         )}
       </div>
-    </header>
+    </nav>
   );
 }
