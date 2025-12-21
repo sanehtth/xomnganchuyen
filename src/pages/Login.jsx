@@ -1,51 +1,40 @@
-﻿// src/pages/Login.jsx
+// src/pages/Login.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
-function LoginPage() {
-  const { firebaseUser, profile, loginWithGoogle, theme, setTheme } = useAuth();
+export default function LoginPage() {
+  const { user, loading, loginWithGoogle, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
-    await loginWithGoogle();
+  if (loading) {
+    return <p>Đang kiểm tra trạng thái đăng nhập...</p>;
+  }
 
-    // Logic điều hướng sau khi login
-    if (profile?.role === "admin") {
-      navigate("/admin/users");
-    } else if (profile?.role === "member" || profile?.role === "contributor") {
-      navigate("/dashboard");
-    } else {
-      // guest
-      navigate("/join");
-    }
-  };
+  // ĐÃ ĐĂNG NHẬP
+  if (user) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h1>Fanpage Lab</h1>
+        <p>Đang đăng nhập: {user.email}</p>
 
-  return (
-    <div style={{ padding: 40 }}>
-      <h1>Fanpage Lab</h1>
+        <button onClick={() => navigate("/dashboard")}>
+          Vào dashboard
+        </button>
 
-      <p>Đăng nhập để vào hệ thống tuyển người & đào tạo.</p>
-
-      <button onClick={handleLogin}>Đăng nhập với Google</button>
-
-      <div style={{ marginTop: 20 }}>
-        <span>Theme hiện tại: {theme}</span>{" "}
-        <button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
-          Đổi theme
+        <button onClick={logout} style={{ marginLeft: 8 }}>
+          Đăng xuất
         </button>
       </div>
+    );
+  }
 
-      {firebaseUser && (
-        <div style={{ marginTop: 20 }}>
-          <div>Đang đăng nhập: {firebaseUser.email}</div>
-          <button onClick={() => navigate("/dashboard")}>
-            Vào dashboard
-          </button>
-        </div>
-      )}
+  // CHƯA ĐĂNG NHẬP
+  return (
+    <div style={{ padding: 20 }}>
+      <h1>Fanpage Lab</h1>
+      <p>Đăng nhập để vào hệ thống tuyển người & đào tạo.</p>
+      <button onClick={loginWithGoogle}>Đăng nhập với Google</button>
     </div>
   );
 }
-
-export default LoginPage;
