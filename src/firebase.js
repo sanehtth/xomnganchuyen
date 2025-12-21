@@ -1,12 +1,10 @@
 // src/firebase.js
-// ================== KHỞI TẠO FIREBASE ==================
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
-  onAuthStateChanged,
 } from "firebase/auth";
 import {
   getDatabase,
@@ -14,62 +12,111 @@ import {
   get,
   set,
   update,
-  onValue,
+  child,
 } from "firebase/database";
 
-// TODO: thay các giá trị này bằng config THẬT của project bạn
+// -------------------------
+// Firebase config
+// -------------------------
 const firebaseConfig = {
-   apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
+  apiKey: "AIzaSyCcvgddYQ0V9__pqkvNvxxw1VnyD6omNOQ",
   authDomain: "xomnganchuyen.firebaseapp.com",
+  databaseURL:
+    "https://xomnganchuyen-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "xomnganchuyen",
-  storageBucket: "xomnganchuyen.firebasestorage.app",
-  messagingSenderId: "335661705640",
-  appId: "1:335661705640:web:8bde062fae1fcb3c99559d",
-  measurementId: "G-21JSZ5G1EX",
+  storageBucket: "xomnganchuyen.appspot.com",
+  messagingSenderId: "1050055484798",
+  appId: "1:1050055484798:web:8e072df4fe8af0f173a941",
 };
 
+// -------------------------
+// Init
+// -------------------------
 const app = initializeApp(firebaseConfig);
-
-// Auth + Realtime DB
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getDatabase(app);
 
-// ================== HÀM LẮNG NGHE USER (Dashboard) ==================
-export function listenUser(uid, cb) {
-  if (!uid) return () => {};
-
-  const userRef = ref(db, `users/${uid}`);
-  const unsubscribe = onValue(userRef, (snap) => {
-    cb(snap.val() || null);
-  });
-
-  // Trả về hàm để component có thể hủy đăng ký nếu cần
-  return unsubscribe;
+// -------------------------
+// Helpers
+// -------------------------
+export async function loginWithGoogle() {
+  const result = await signInWithPopup(auth, googleProvider);
+  return result.user;
 }
 
-// ================== TẠO / CẬP NHẬT HỒ SƠ USER ==================
+export async function logout() {
+  await signOut(auth);
+}
+
+/**
+ * Tạo mã joinCode ngẫu nhiên cho VIP
+ */
+export function generateJoinCode(length = 8) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < length; i += 1) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
+
+/**
+ * Giá trị mặc định cho 9 chỉ số hành vi + stats
+ */
+function defaultBehaviorProfile() {
+  return {
+    metrics: {
+      fi: 0,
+      pi: 0,
+      pi_star: 0,
+    },
+    profile: {
+      quizDone: false,
+      quizEng: false,
+      skills: "",
+    },
+    stats: {
+      badge: 0,
+      xp: 0,
+      coin: 0,
+    },
+    traits: {
+      competitiveness: 0,
+      creativity: 0,
+      perfectionism: 0,
+      playfulness: 0,
+      self_improvement: 0,
+      sociability: 0,
+    },
+    weekly: {},
+  };
+}
+
+/**
+ * Đảm bảo user trong Realtime DB tồn tại.
+ * - Nếu chưa có: tạo mới với role="guest", status="none"
+ * - Nếu có rồi: update lại info cơ bản + lastActiveAt
+ */
 export async function ensureUserProfile(user) {
   if (!user) return null;
 
   const userRef = ref(db, `users/${user.uid}`);
   const snap = await get(userRef);
 
-  // Nếu đã có user trong DB -> chỉ cập nhật thời gian hoạt động cuối
   if (snap.exists()) {
     const existing = snap.val();
     const updateData = {
-      lastActiveAt: Date.now(),
-      // cập nhật lại tên / avatar nếu user đổi trên Google
       displayName: user.displayName || existing.displayName || "",
+      email: user.email || existing.email || "",
       photoURL: user.photoURL || existing.photoURL || "",
+      lastActiveAt: Date.now(),
     };
     await update(userRef, updateData);
     return { ...existing, ...updateData };
   }
 
-  // Nếu chưa có -> tạo bản ghi mới
-  const payload = {
+  const base = {
     uid: user.uid,
     displayName: user.displayName || "",
     email: user.email || "",
@@ -77,60 +124,40 @@ export async function ensureUserProfile(user) {
     createdAt: Date.now(),
     lastActiveAt: Date.now(),
 
-    // 3 chỉ số cho người dùng thấy
+    // quản lý & phân quyền
+    role: "guest", // guest | member | associate | admin
+    status: "none", // none | pending | approved | rejected
+    joinCode: "",
+
+    // chỉ số công khai
     xp: 0,
     coin: 0,
     level: 1,
 
-    // các trường dành cho bạn quản lý
-    role: "guest",        // guest | member | associate | admin
-    status: "none",       // none | pending | approved | rejected
-    joinCode: "",         // sẽ gán khi user gửi yêu cầu VIP / được duyệt
+    // bộ 9 chỉ số + weekly
+    ...defaultBehaviorProfile(),
   };
 
-  await set(userRef, payload);
-  return payload;
+  await set(userRef, base);
+  return base;
 }
 
-// ================== LOGIN / LOGOUT ==================
-export async function loginWithGoogle() {
-  const res = await signInWithPopup(auth, googleProvider);
-  const user = res.user;
-  // đảm bảo có record trong Realtime DB
-  await ensureUserProfile(user);
-  return user;
-}
-
-export function logout() {
-  return signOut(auth);
-}
-
-// Cho AuthContext dùng nếu cần
-export function listenAuth(callback) {
-  return onAuthStateChanged(auth, callback);
-}
-
-// ================== JOIN GATE: GỬI YÊU CẦU VIP ==================
+/**
+ * User gửi yêu cầu VIP:
+ * - status -> "pending"
+ * - tạo joinCode mới
+ */
 export async function requestVip(uid) {
   const userRef = ref(db, `users/${uid}`);
   const snap = await get(userRef);
-  if (!snap.exists()) {
-    throw new Error("User not found");
-  }
+  if (!snap.exists()) throw new Error("User not found");
 
   const current = snap.val();
-
-  // Nếu đã là member/associate/admin thì không cần gửi nữa
-  if (current.role !== "guest") {
-    return current;
-  }
-
-  // Tạo mã joinCode 8 ký tự
-  const joinCode = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const newJoinCode = generateJoinCode();
 
   const updateData = {
-    joinCode,
-    status: "pending", // chờ admin duyệt
+    status: "pending",
+    joinCode: newJoinCode,
     lastActiveAt: Date.now(),
   };
 
@@ -138,36 +165,31 @@ export async function requestVip(uid) {
   return { ...current, ...updateData };
 }
 
-// ================== ADMIN: LẤY DANH SÁCH USER ==================
+/**
+ * Lấy toàn bộ users (dùng cho Admin)
+ */
 export async function fetchAllUsers() {
-  const usersRef = ref(db, "users");
-  const snap = await get(usersRef);
-
+  const rootRef = ref(db);
+  const snap = await get(child(rootRef, "users"));
   if (!snap.exists()) return [];
 
-  const data = snap.val();
-  // Trả về mảng cho dễ map trong AdminUsers.jsx
-  return Object.entries(data).map(([uid, user]) => ({
+  const obj = snap.val();
+  return Object.keys(obj).map((uid) => ({
     uid,
-    ...user,
+    ...obj[uid],
   }));
 }
 
-// ================== ADMIN: DUYỆT USER LÊN MEMBER ==================
+/**
+ * Admin duyệt user thành Member
+ */
 export async function approveUser(uid) {
   const userRef = ref(db, `users/${uid}`);
   const snap = await get(userRef);
-  if (!snap.exists()) {
-    throw new Error("User not found");
-  }
+  if (!snap.exists()) throw new Error("User not found");
 
   const current = snap.val();
-
-  // Nếu chưa có joinCode thì tạo mới
-  const joinCode =
-    current.joinCode && current.joinCode !== ""
-      ? current.joinCode
-      : Math.random().toString(36).slice(2, 10).toUpperCase();
+  const joinCode = current.joinCode || generateJoinCode();
 
   const updateData = {
     role: "member",
@@ -180,8 +202,20 @@ export async function approveUser(uid) {
   return { ...current, ...updateData };
 }
 
-// ================== ADMIN: ĐỔI ROLE (guest / member / associate / admin) ==================
+/**
+ * Admin set role bất kỳ (guest/member/associate/admin)
+ */
 export async function setUserRole(uid, role) {
   const userRef = ref(db, `users/${uid}`);
-  await update(userRef, { role });
+  const snap = await get(userRef);
+  if (!snap.exists()) throw new Error("User not found");
+
+  const current = snap.val();
+  const updateData = {
+    role,
+    lastActiveAt: Date.now(),
+  };
+
+  await update(userRef, updateData);
+  return { ...current, ...updateData };
 }
