@@ -1,0 +1,1 @@
+Folder admin: neu muon co admin.html rieng thi dat o day. Hien tai admin view da co trong index.html.
