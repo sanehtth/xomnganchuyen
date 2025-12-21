@@ -1,21 +1,31 @@
-// theme.jsx
+// src/theme.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 const ThemeContext = createContext(null);
 
+const THEME_KEY = "fanpage_theme";
+
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem("theme") || "light";
-  });
+  const [theme, setTheme] = useState("light");
 
   useEffect(() => {
-    document.body.dataset.theme = theme;
-    localStorage.setItem("theme", theme);
+    const saved =
+      window.localStorage.getItem(THEME_KEY) ||
+      (window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light");
+
+    setTheme(saved);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
-  function toggleTheme() {
+  const toggleTheme = () =>
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
@@ -25,5 +35,7 @@ export function ThemeProvider({ children }) {
 }
 
 export function useTheme() {
-  return useContext(ThemeContext);
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error("useTheme must be used inside ThemeProvider");
+  return ctx;
 }
