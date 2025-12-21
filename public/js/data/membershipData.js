@@ -1,9 +1,39 @@
-
 // js/data/membershipData.js
-// Cac ham lien quan den viec xin thanh vien, duyet, tu choi
+// Cac chuc nang lien quan toi membership (yeu cau member, duyet user, set role)
 
-import { db, doc, updateDoc } from "../he-thong/firebase.js";
+import {
+  db,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  doc,
+  updateDoc,
+} from "../he-thong/firebase.js";
 
+// =======================
+// Lay danh sach user cho Admin Panel
+// =======================
+export async function fetchAllUsers() {
+  const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
+  const snap = await getDocs(q);
+
+  const list = [];
+  snap.forEach((d) => {
+    list.push({
+      uid: d.id,
+      ...d.data(),
+    });
+  });
+
+  return list;
+}
+
+// =======================
+// UI gui yeu cau tro thanh member
+// status trong DB: none | pending | approved | rejected | banned
+// UI se map lai thanh normal / pending / banned
+// =======================
 export async function requestMembership(uid) {
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, {
@@ -11,21 +41,35 @@ export async function requestMembership(uid) {
   });
 }
 
-export async function approveMembership(uid, newRole = "member", joinCode = "") {
+// =======================
+// Admin duyet / tu choi membership
+// action: "approve" | "reject"
+// newRole: "member" | "associate" | "admin" | "guest" ...
+// =======================
+export async function approveUser(uid, action, newRole) {
   const userRef = doc(db, "users", uid);
-  const patch = {
-    status: "approved",
-    role: newRole,
-  };
-  if (joinCode) {
-    patch.joinCode = joinCode;
+
+  if (action === "approve") {
+    const patch = {
+      status: "approved",
+    };
+
+    if (newRole) {
+      patch.role = newRole;
+    }
+
+    await updateDoc(userRef, patch);
+  } else if (action === "reject") {
+    await updateDoc(userRef, {
+      status: "rejected",
+    });
   }
-  await updateDoc(userRef, patch);
 }
 
-export async function rejectMembership(uid) {
+// =======================
+// Admin set role truc tiep (neu can)
+// =======================
+export async function setUserRole(uid, newRole) {
   const userRef = doc(db, "users", uid);
-  await updateDoc(userRef, {
-    status: "rejected",
-  });
+  await updateDoc(userRef, { role: newRole });
 }
