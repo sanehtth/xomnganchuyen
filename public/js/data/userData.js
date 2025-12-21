@@ -38,41 +38,45 @@ const DEFAULT_PROFILE = {
   },
 };
 
+import { generateXncId } from "./userData.js"; // neu dong nay bi trung import, co the bo
+
 export async function ensureUserDocument(firebaseUser) {
   if (!firebaseUser) return null;
+
   const uid = firebaseUser.uid;
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
 
-  const baseData = {
-    uid,
-    displayName: firebaseUser.displayName || firebaseUser.email || "User",
-    email: firebaseUser.email || "",
-    photoURL: firebaseUser.photoURL || "",
-  };
+  // Neu da co profile -> chi cap nhat lastActiveAt va merge DEFAULT_PROFILE
+  if (snap.exists()) {
+    const data = snap.data();
 
-  if (!snap.exists()) {
-    // User moi: tao document voi gia tri mac dinh
-    const docData = {
-      ...baseData,
-      ...DEFAULT_PROFILE,
-      createdAt: serverTimestamp(),
+    await updateDoc(userRef, {
       lastActiveAt: serverTimestamp(),
+    });
+
+    // tra ve: uid + schema mac dinh + du lieu trong DB
+    return {
+      uid,
+      ...DEFAULT_PROFILE,
+      ...data,
     };
-    await setDoc(userRef, docData);
-    return docData;
   }
 
-  // User da ton tai: cap nhat thong tin co ban + lastActiveAt
-  const current = snap.data();
-  const patch = {
-    ...baseData,
+  // Chua co profile -> tao moi
+  const baseProfile = {
+    ...DEFAULT_PROFILE,
+    uid,
+    id: generateXncId(), // <-- GAN ID XNC O DAY
+    email: firebaseUser.email || "",
+    displayName: firebaseUser.displayName || firebaseUser.email || "User",
+    photoUrl: firebaseUser.photoURL || "",
+    createdAt: serverTimestamp(),
     lastActiveAt: serverTimestamp(),
   };
 
-  await updateDoc(userRef, patch);
-
-  return { ...current, ...patch };
+  await setDoc(userRef, baseProfile);
+  return baseProfile;
 }
 
 export async function getUserDocument(uid) {
