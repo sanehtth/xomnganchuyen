@@ -1,4 +1,3 @@
-
 // js/data/userData.js
 // Cac ham lam viec voi collection `users` trong Firestore
 // Khong dung DOM trong file nay, chi lam viec voi du lieu
@@ -12,11 +11,13 @@ import {
   serverTimestamp,
 } from "../he-thong/firebase.js";
 
+// =======================
 // Cac gia tri mac dinh cho user moi
+// =======================
 const DEFAULT_PROFILE = {
   role: "guest",       // guest | member | associate | admin
-  status: "none",      // none | pending | approved | rejected
-  id: "",                // se duoc gan bang generateXncId() khi tao user
+  status: "none",      // none | pending | approved | rejected (UI se map lai)
+  id: "",              // se duoc gan bang generateXncId() khi tao user
   xp: 0,
   coin: 0,
   level: 1,
@@ -38,8 +39,12 @@ const DEFAULT_PROFILE = {
   },
 };
 
-import { generateXncId } from "./userData.js"; // neu dong nay bi trung import, co the bo
+// KHÔNG import generateXncId tu chinh file nay nua
+// (neu con dong import { generateXncId } from "./userData.js"; thi xoa di)
 
+// =======================
+// Tao hoac lay user document
+// =======================
 export async function ensureUserDocument(firebaseUser) {
   if (!firebaseUser) return null;
 
@@ -67,7 +72,7 @@ export async function ensureUserDocument(firebaseUser) {
   const baseProfile = {
     ...DEFAULT_PROFILE,
     uid,
-    id: generateXncId(), // <-- GAN ID XNC O DAY
+    id: generateXncId(), // GAN ID XNC o day
     email: firebaseUser.email || "",
     displayName: firebaseUser.displayName || firebaseUser.email || "User",
     photoUrl: firebaseUser.photoURL || "",
@@ -79,19 +84,25 @@ export async function ensureUserDocument(firebaseUser) {
   return baseProfile;
 }
 
+// Doc 1 lan
 export async function getUserDocument(uid) {
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
   return snap.exists() ? snap.data() : null;
 }
 
+// Cap nhat profile don gian (patch)
 export async function updateUserProfile(uid, patch) {
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, patch);
 }
 
 // Ham giup admin cap nhat chi so traits / metrics cua user
-export async function updateUserTraitsAndMetrics(uid, traitsPatch = {}, metricsPatch = {}) {
+export async function updateUserTraitsAndMetrics(
+  uid,
+  traitsPatch = {},
+  metricsPatch = {}
+) {
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) return;
@@ -105,6 +116,7 @@ export async function updateUserTraitsAndMetrics(uid, traitsPatch = {}, metricsP
     metrics: newMetrics,
   });
 }
+
 // =======================
 // Helper map status cho UI
 // UI chi dung 3 trang thai: normal / pending / banned
