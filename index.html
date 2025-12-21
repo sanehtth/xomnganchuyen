@@ -1,14 +1,15 @@
+
 <!doctype html>
 <html lang="vi">
   <head>
     <meta charset="utf-8" />
-    <title>Fanpage Lab - Member & Admin System</title>
+    <title>Fanpage Lab - Member System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="./css/theme.css" />
   </head>
   <body data-theme="light">
     <div id="app">
-      <!-- Thanh dieu huong -->
+      <!-- Thanh dieu huong chinh -->
       <header class="navbar">
         <div class="navbar-left">
           <span class="logo">Fanpage Lab</span>
@@ -40,7 +41,7 @@
 
       <!-- Noi dung chinh -->
       <main class="main">
-        <!-- Thanh thong bao trang thai -->
+        <!-- Thanh thong bao trang thai chung -->
         <section id="status-bar" class="status-bar"></section>
 
         <!-- View: Dashboard -->
@@ -120,13 +121,16 @@
                     <th>XP</th>
                     <th>Coin</th>
                     <th>Level</th>
+                    <th>FI</th>
+                    <th>PI</th>
+                    <th>PI*</th>
                     <th>JoinCode</th>
                     <th>Hanh dong</th>
                   </tr>
                 </thead>
                 <tbody id="users-table-body">
                   <tr>
-                    <td colspan="9">Dang tai...</td>
+                    <td colspan="12">Dang tai...</td>
                   </tr>
                 </tbody>
               </table>
@@ -147,6 +151,7 @@
       </main>
     </div>
 
-    <script type="module" src="./js/main.js"></script>
+    <!-- Entry JS chinh -->
+    <script type="module" src="./main.js"></script>
   </body>
 </html>

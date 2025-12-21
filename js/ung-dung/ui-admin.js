@@ -1,3 +1,4 @@
+
 // js/ung-dung/ui-admin.js
 // Giao dien Admin: quan ly user + bao cao
 
@@ -76,7 +77,7 @@ export async function loadAndRenderAdmin(
   function renderUsersTable() {
     if (!Array.isArray(allUsers) || allUsers.length === 0) {
       usersTableBody.innerHTML =
-        '<tr><td colspan="9">Chua co user nao.</td></tr>';
+        '<tr><td colspan="12">Chua co user nao.</td></tr>';
       return;
     }
 
@@ -93,13 +94,14 @@ export async function loadAndRenderAdmin(
 
     if (filtered.length === 0) {
       usersTableBody.innerHTML =
-        '<tr><td colspan="9">Khong co user nao khop bo loc.</td></tr>';
+        '<tr><td colspan="12">Khong co user nao khop bo loc.</td></tr>';
       return;
     }
 
     usersTableBody.innerHTML = "";
 
     filtered.forEach((u) => {
+      const metrics = u.metrics || {};
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${u.email || ""}</td>
@@ -109,6 +111,9 @@ export async function loadAndRenderAdmin(
         <td>${u.xp ?? 0}</td>
         <td>${u.coin ?? 0}</td>
         <td>${u.level ?? 1}</td>
+        <td>${metrics.fi ?? 0}</td>
+        <td>${metrics.pi ?? 0}</td>
+        <td>${metrics.piStar ?? 0}</td>
         <td>${u.joinCode || ""}</td>
         <td>
           <div class="admin-actions">

@@ -1,3 +1,4 @@
+
 // js/data/userData.js
 // Cac ham lam viec voi collection `users` trong Firestore
 // Khong dung DOM trong file nay, chi lam viec voi du lieu
@@ -19,18 +20,20 @@ const DEFAULT_PROFILE = {
   coin: 0,
   level: 1,
   joinCode: "",
+  // 6 chi so hanh vi
   traits: {
     competitiveness: 0,
     creativity: 0,
-    perseverance: 0,
-    discipline: 0,
-    teamwork: 0,
-    communication: 0,
+    perfectionism: 0,
+    playfulness: 0,
+    selfImprovement: 0,
+    sociability: 0,
   },
-  scores: {
-    growthIndex: 0,
-    reliabilityIndex: 0,
-    talentIndex: 0,
+  // 3 chi so FI / PI / PI*
+  metrics: {
+    fi: 0,
+    pi: 0,
+    piStar: 0,
   },
 };
 
@@ -56,8 +59,6 @@ export async function ensureUserDocument(firebaseUser) {
       lastActiveAt: serverTimestamp(),
     };
     await setDoc(userRef, docData);
-    // Lan dau, createdAt co the la null tren client (vi serverTimestamp),
-    // nhung dieu nay khong anh huong logic
     return docData;
   }
 
@@ -84,18 +85,18 @@ export async function updateUserProfile(uid, patch) {
   await updateDoc(userRef, patch);
 }
 
-// Hàm giup admin cap nhat chi so traits/scores cua user
-export async function updateUserTraitsAndScores(uid, traitsPatch = {}, scoresPatch = {}) {
+// Ham giup admin cap nhat chi so traits / metrics cua user
+export async function updateUserTraitsAndMetrics(uid, traitsPatch = {}, metricsPatch = {}) {
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) return;
 
   const current = snap.data();
   const newTraits = { ...(current.traits || {}), ...traitsPatch };
-  const newScores = { ...(current.scores || {}, ...scoresPatch) };
+  const newMetrics = { ...(current.metrics || {}), ...metricsPatch };
 
   await updateDoc(userRef, {
     traits: newTraits,
-    scores: newScores,
+    metrics: newMetrics,
   });
 }

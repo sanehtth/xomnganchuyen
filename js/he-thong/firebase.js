@@ -1,3 +1,4 @@
+
 // js/he-thong/firebase.js
 // Khoi tao Firebase + Firestore
 // Chi lam nhiem vu he thong, khong viet logic giao dien o day

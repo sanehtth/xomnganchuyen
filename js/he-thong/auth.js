@@ -1,3 +1,4 @@
+
 // js/he-thong/auth.js
 // Quan ly trang thai dang nhap bang Firebase Auth
 
@@ -40,7 +41,7 @@ export function subscribeAuthState(callback) {
       callback(null, null);
       return;
     }
-    // Doc document user sau khi dam bao ton tai
+    // Dam bao document ton tai + doc lai profile
     await ensureUserDocument(firebaseUser);
     const fresh = await getUserDocument(firebaseUser.uid);
     authState.profile = fresh;
