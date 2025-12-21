@@ -1,74 +1,75 @@
 // src/pages/JoinGate.jsx
-import React, { useState } from "react";
-import { useAuth } from "../AuthContext.jsx";
-import { requestVip } from "../firebase.js";
+
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../AuthContext";
+import { requestVip } from "../firebase";
 
 export default function JoinGate() {
-  const { loading, isLoggedIn, user, profile, status, role } = useAuth();
+  const { firebaseUser, profile, loading, isLoggedIn } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
 
-  if (loading) return <p>Đang tải...</p>;
-  if (!isLoggedIn) return <p>Bạn cần đăng nhập trước.</p>;
+  if (loading) {
+    return <main className="app-shell">Đang tải...</main>;
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <main className="app-shell">
+        <p>Bạn cần đăng nhập trước.</p>
+        <Link to="/login" className="btn btn-primary">
+          Đăng nhập
+        </Link>
+      </main>
+    );
+  }
+
+  const status = profile?.status || "none";
 
   const handleRequest = async () => {
-    if (!user) return;
+    if (!firebaseUser) return;
     setSubmitting(true);
-    setError("");
     try {
-      await requestVip(user.uid);
+      await requestVip(firebaseUser.uid);
+      setDone(true);
     } catch (err) {
       console.error(err);
-      setError("Có lỗi khi gửi yêu cầu, thử lại sau.");
+      alert("Gửi yêu cầu bị lỗi, thử lại sau.");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="card" style={{ padding: 30 }}>
-      <h1>Cổng đăng ký VIP</h1>
-
-      <p className="mt-2">
-        Xin chào, <strong>{profile?.displayName || user?.displayName}</strong>
-      </p>
-
-      {role !== "guest" && (
-        <p className="mt-3">
-          Bạn đã là <strong>{role}</strong>. Không cần gửi yêu cầu nữa.
-        </p>
-      )}
-
-      {role === "guest" && status === "none" && (
-        <>
-          <p className="mt-3">
-            Bạn hiện là guest. Nếu đã làm đủ bước (sub kênh, tham gia hoạt
-            động...), hãy bấm nút dưới để gửi yêu cầu VIP.
-          </p>
-          <button
-            className="btn btn-primary mt-3"
-            onClick={handleRequest}
-            disabled={submitting}
-          >
-            {submitting ? "Đang gửi..." : "Gửi yêu cầu VIP"}
-          </button>
-        </>
-      )}
+    <main className="app-shell">
+      <h1>Cổng thành viên</h1>
+      <p>Role hiện tại: {profile?.role || "guest"}</p>
+      <p>Trạng thái duyệt: {status}</p>
 
       {status === "pending" && (
-        <p className="mt-3">
-          Yêu cầu VIP đang chờ admin duyệt. Khi được duyệt, bạn sẽ thấy role và
-          joinCode ở trang dashboard.
-        </p>
+        <p>Bạn đã gửi yêu cầu, vui lòng chờ admin duyệt.</p>
       )}
 
       {status === "approved" && (
-        <p className="mt-3">
-          Yêu cầu của bạn đã được duyệt. Hãy xem Dashboard để lấy ID / joinCode.
-        </p>
+        <>
+          <p>Yêu cầu đã được duyệt.</p>
+          <p>Join code: {profile?.joinCode || "(admin chưa cấp)"}</p>
+          <Link to="/dashboard" className="btn btn-primary">
+            Về dashboard
+          </Link>
+        </>
       )}
 
-      {error && <p className="mt-3" style={{ color: "red" }}>{error}</p>}
-    </div>
+      {status === "none" && (
+        <button
+          className="btn btn-primary"
+          onClick={handleRequest}
+          disabled={submitting || done}
+        >
+          {submitting ? "Đang gửi..." : done ? "Đã gửi yêu cầu" : "Gửi yêu cầu trở thành member"}
+        </button>
+      )}
+    </main>
   );
 }
