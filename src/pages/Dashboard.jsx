@@ -1,45 +1,28 @@
 // src/pages/Dashboard.jsx
-import React from "react";
-import { Link } from "react-router-dom";
-import { useAuth } from "../AuthContext.jsx";
+import { useAuth } from "../AuthContext";
 
 export default function Dashboard() {
-  const { loading, isLoggedIn, user, profile, role, status } = useAuth();
-
-  if (loading) return <p>Đang tải...</p>;
-  if (!isLoggedIn) return <p>Bạn chưa đăng nhập.</p>;
+  const { user, logout, loading } = useAuth();
 
   return (
-    <div className="card">
+    <main style={{ padding: 40 }}>
       <h1>Fanpage Lab (beta)</h1>
-      <p className="mt-2">
-        Xin chào, <strong>{user?.displayName || user?.email}</strong>
-      </p>
+      <p>Xin chào, {user?.displayName || "bạn"}.</p>
+      <p>Email: {user?.email}</p>
 
-      <p className="mt-2">Email: {user?.email}</p>
-      <p>Role: {role}</p>
-      <p>Status: {status}</p>
+      {/* Chỗ này sau này bạn hiển thị coin/xp/level, joinCode, v.v. */}
+      <section style={{ marginTop: 24 }}>
+        <h2>Chỉ số công khai</h2>
+        <ul>
+          <li>XP: 0</li>
+          <li>Coin: 0</li>
+          <li>Level: 1</li>
+        </ul>
+      </section>
 
-      <h3 className="mt-3">Chỉ số công khai</h3>
-      <ul>
-        <li>XP: {profile?.xp ?? 0}</li>
-        <li>Coin: {profile?.coin ?? 0}</li>
-        <li>Level: {profile?.level ?? 1}</li>
-      </ul>
-
-      {role === "guest" && (
-        <p className="mt-3">
-          Bạn hiện là guest. Vào trang{" "}
-          <Link to="/join">Cổng đăng ký VIP</Link> để gửi yêu cầu.
-        </p>
-      )}
-
-      {role !== "guest" && (
-        <p className="mt-3">
-          Bạn đã là <strong>{role}</strong>. Hệ thống sẽ dần bổ sung thêm tool
-          và nhiệm vụ.
-        </p>
-      )}
-    </div>
+      <button onClick={logout} disabled={loading} style={{ marginTop: 24 }}>
+        {loading ? "Đang đăng xuất..." : "Logout"}
+      </button>
+    </main>
   );
 }
