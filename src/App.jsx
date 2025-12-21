@@ -3,9 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import { useAuth } from "./AuthContext";
-// import AdminUsers from "./pages/admin/AdminUsers";
-// import AdminPanel from "./pages/admin/AdminPanel";
-// import JoinGate from "./pages/JoinGate";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminPanel from "./pages/admin/AdminPanel";
+import JoinGate from "./pages/JoinGate";
 
 function PrivateRoute({ children }) {
   const { user, checkingAuth } = useAuth();
