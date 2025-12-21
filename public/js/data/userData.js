@@ -100,3 +100,34 @@ export async function updateUserTraitsAndMetrics(uid, traitsPatch = {}, metricsP
     metrics: newMetrics,
   });
 }
+// =======================
+// Helper map status cho UI
+// UI chỉ dùng 3 trạng thái: normal / pending / banned
+// =======================
+export function getUiAccountStatus(profile) {
+  const raw = (profile && profile.status) || "none";
+
+  if (raw === "banned") return "banned";   // tài khoản bị cấm
+  if (raw === "pending") return "pending"; // đang chờ duyệt
+
+  // các trạng thái còn lại (none, approved, rejected, ...) đều xem là bình thường
+  return "normal";
+}
+
+// =======================
+// Helper sinh ID XNC + ngày + 7 số random
+// Ví dụ: XNC2512210000457
+// =======================
+export function generateXncId() {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2); // 2 số cuối của năm
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+
+  const random = Math.floor(Math.random() * 10_000_000)
+    .toString()
+    .padStart(7, "0"); // 7 số
+
+  // XNC + yy + mm + dd + 7 số = 16 ký tự
+  return `XNC${yy}${mm}${dd}${random}`;
+}
