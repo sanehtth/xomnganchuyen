@@ -1,40 +1,46 @@
 // src/pages/Login.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../AuthContext.jsx";
 
-export default function LoginPage() {
-  const { user, loading, loginWithGoogle, logout } = useAuth();
+export default function Login() {
+  const { isLoggedIn, user, loading, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   if (loading) {
-    return <p>Đang kiểm tra trạng thái đăng nhập...</p>;
+    return <p>Đang kiểm tra đăng nhập...</p>;
   }
 
-  // ĐÃ ĐĂNG NHẬP
-  if (user) {
+  // Đã đăng nhập
+  if (isLoggedIn) {
     return (
-      <div style={{ padding: 20 }}>
+      <div className="card">
         <h1>Fanpage Lab</h1>
-        <p>Đang đăng nhập: {user.email}</p>
+        <p>Đăng nhập để vào hệ thống tuyển người & đào tạo.</p>
 
-        <button onClick={() => navigate("/dashboard")}>
+        <p className="mt-3">
+          Đang đăng nhập: <strong>{user?.email}</strong>
+        </p>
+
+        <button
+          className="btn btn-primary mt-3"
+          onClick={() => navigate("/dashboard")}
+        >
           Vào dashboard
-        </button>
-
-        <button onClick={logout} style={{ marginLeft: 8 }}>
-          Đăng xuất
         </button>
       </div>
     );
   }
 
-  // CHƯA ĐĂNG NHẬP
+  // Chưa đăng nhập
   return (
-    <div style={{ padding: 20 }}>
+    <div className="card">
       <h1>Fanpage Lab</h1>
       <p>Đăng nhập để vào hệ thống tuyển người & đào tạo.</p>
-      <button onClick={loginWithGoogle}>Đăng nhập với Google</button>
+
+      <button className="btn btn-primary mt-3" onClick={loginWithGoogle}>
+        Đăng nhập với Google
+      </button>
     </div>
   );
 }
