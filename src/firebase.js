@@ -1,4 +1,5 @@
 // src/firebase.js
+// ================== KHỞI TẠO FIREBASE ==================
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
@@ -10,13 +11,13 @@ import {
 import {
   getDatabase,
   ref,
-  onValue,
-  set,
   get,
+  set,
   update,
+  onValue,
 } from "firebase/database";
 
-// TODO: THAY BẰNG CONFIG THẬT CỦA EM
+// TODO: thay các giá trị này bằng config THẬT của project bạn
 const firebaseConfig = {
    apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
   authDomain: "xomnganchuyen.firebaseapp.com",
@@ -29,111 +30,158 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// ---------- AUTH ----------
+// Auth + Realtime DB
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-
-// ---------- REALTIME DB ----------
 export const db = getDatabase(app);
 
-// Lắng nghe thay đổi dữ liệu user trong Realtime DB
+// ================== HÀM LẮNG NGHE USER (Dashboard) ==================
 export function listenUser(uid, cb) {
   if (!uid) return () => {};
+
   const userRef = ref(db, `users/${uid}`);
-  return onValue(userRef, (snap) => {
+  const unsubscribe = onValue(userRef, (snap) => {
     cb(snap.val() || null);
   });
+
+  // Trả về hàm để component có thể hủy đăng ký nếu cần
+  return unsubscribe;
 }
 
-// Helper tạo mã joinCode ngẫu nhiên
-function generateJoinCode(length = 8) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < length; i++) {
-    out += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return out;
-}
-
-// Tạo / cập nhật hồ sơ user trong Realtime DB
-// LƯU Ý: status mặc định là "none" (chưa gửi yêu cầu VIP)
+// ================== TẠO / CẬP NHẬT HỒ SƠ USER ==================
 export async function ensureUserProfile(user) {
   if (!user) return null;
 
   const userRef = ref(db, `users/${user.uid}`);
   const snap = await get(userRef);
 
-  if (!snap.exists()) {
-    const payload = {
-      uid: user.uid,
-      displayName: user.displayName ?? "",
-      email: user.email ?? "",
-      photoURL: user.photoURL ?? "",
-      createdAt: Date.now(),
+  // Nếu đã có user trong DB -> chỉ cập nhật thời gian hoạt động cuối
+  if (snap.exists()) {
+    const existing = snap.val();
+    const updateData = {
       lastActiveAt: Date.now(),
-      level: 1,
-      coin: 0,
-      xp: 0,
-      joinCode: "",
-      role: "guest",   // khách
-      status: "none",  // chưa gửi yêu cầu VIP
+      // cập nhật lại tên / avatar nếu user đổi trên Google
+      displayName: user.displayName || existing.displayName || "",
+      photoURL: user.photoURL || existing.photoURL || "",
     };
-
-    await set(userRef, payload);
-    return payload;
+    await update(userRef, updateData);
+    return { ...existing, ...updateData };
   }
 
-  const existing = snap.val();
-  const lastActiveAt = Date.now();
+  // Nếu chưa có -> tạo bản ghi mới
+  const payload = {
+    uid: user.uid,
+    displayName: user.displayName || "",
+    email: user.email || "",
+    photoURL: user.photoURL || "",
+    createdAt: Date.now(),
+    lastActiveAt: Date.now(),
 
-  await update(userRef, { lastActiveAt });
+    // 3 chỉ số cho người dùng thấy
+    xp: 0,
+    coin: 0,
+    level: 1,
 
-  return {
-    ...existing,
-    lastActiveAt,
+    // các trường dành cho bạn quản lý
+    role: "guest",        // guest | member | associate | admin
+    status: "none",       // none | pending | approved | rejected
+    joinCode: "",         // sẽ gán khi user gửi yêu cầu VIP / được duyệt
   };
+
+  await set(userRef, payload);
+  return payload;
 }
 
-// Đăng nhập Google + đảm bảo hồ sơ user tồn tại
+// ================== LOGIN / LOGOUT ==================
 export async function loginWithGoogle() {
   const res = await signInWithPopup(auth, googleProvider);
   const user = res.user;
-
-  const userRecord = await ensureUserProfile(user);
-
-  return { user, userRecord };
+  // đảm bảo có record trong Realtime DB
+  await ensureUserProfile(user);
+  return user;
 }
 
-// Đăng xuất
-export async function logout() {
-  await signOut(auth);
+export function logout() {
+  return signOut(auth);
 }
 
-// HÀM EM ĐANG IMPORT Ở JoinGate.jsx
-// -> khi user bấm "Gửi yêu cầu VIP"
+// Cho AuthContext dùng nếu cần
+export function listenAuth(callback) {
+  return onAuthStateChanged(auth, callback);
+}
+
+// ================== JOIN GATE: GỬI YÊU CẦU VIP ==================
 export async function requestVip(uid) {
-  if (!uid) throw new Error("Missing uid");
-
   const userRef = ref(db, `users/${uid}`);
   const snap = await get(userRef);
-
   if (!snap.exists()) {
-    throw new Error("User not found in database");
+    throw new Error("User not found");
   }
 
-  const user = snap.val();
+  const current = snap.val();
 
-  // Nếu chưa có joinCode thì tạo mới, nếu có rồi thì giữ nguyên
-  const joinCode = user.joinCode && user.joinCode.trim()
-    ? user.joinCode
-    : generateJoinCode(8);
+  // Nếu đã là member/associate/admin thì không cần gửi nữa
+  if (current.role !== "guest") {
+    return current;
+  }
 
-  const updates = {
-    status: "pending", // gửi yêu cầu VIP -> chờ duyệt
+  // Tạo mã joinCode 8 ký tự
+  const joinCode = Math.random().toString(36).slice(2, 10).toUpperCase();
+
+  const updateData = {
     joinCode,
+    status: "pending", // chờ admin duyệt
+    lastActiveAt: Date.now(),
   };
 
-  await update(userRef, updates);
+  await update(userRef, updateData);
+  return { ...current, ...updateData };
+}
 
-  return { ...user, ...updates };
+// ================== ADMIN: LẤY DANH SÁCH USER ==================
+export async function fetchAllUsers() {
+  const usersRef = ref(db, "users");
+  const snap = await get(usersRef);
+
+  if (!snap.exists()) return [];
+
+  const data = snap.val();
+  // Trả về mảng cho dễ map trong AdminUsers.jsx
+  return Object.entries(data).map(([uid, user]) => ({
+    uid,
+    ...user,
+  }));
+}
+
+// ================== ADMIN: DUYỆT USER LÊN MEMBER ==================
+export async function approveUser(uid) {
+  const userRef = ref(db, `users/${uid}`);
+  const snap = await get(userRef);
+  if (!snap.exists()) {
+    throw new Error("User not found");
+  }
+
+  const current = snap.val();
+
+  // Nếu chưa có joinCode thì tạo mới
+  const joinCode =
+    current.joinCode && current.joinCode !== ""
+      ? current.joinCode
+      : Math.random().toString(36).slice(2, 10).toUpperCase();
+
+  const updateData = {
+    role: "member",
+    status: "approved",
+    joinCode,
+    lastActiveAt: Date.now(),
+  };
+
+  await update(userRef, updateData);
+  return { ...current, ...updateData };
+}
+
+// ================== ADMIN: ĐỔI ROLE (guest / member / associate / admin) ==================
+export async function setUserRole(uid, role) {
+  const userRef = ref(db, `users/${uid}`);
+  await update(userRef, { role });
 }
