@@ -1,89 +1,78 @@
-// AuthContext.jsx
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { auth, db } from "./firebase";
-import { ref, get, set } from "firebase/database";
+// src/AuthContext.jsx
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useMemo,
+} from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import {
+  auth,
+  loginWithGoogle,
+  logout as firebaseLogout,
+  ensureUserProfile,
+} from "./firebase";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);      // user từ Firebase Auth
-  const [profile, setProfile] = useState(null); // hồ sơ trong DB (role, xp, coin,...)
+  const [user, setUser] = useState(null); // Firebase user
+  const [profile, setProfile] = useState(null); // data trong Realtime DB
   const [loading, setLoading] = useState(true);
 
-  // đăng nhập với Google
-  async function loginWithGoogle() {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
-    // phần còn lại do onAuthStateChanged xử lý
-  }
-
-  // đăng xuất
-  function logout() {
-    return signOut(auth);
-  }
-
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      if (!fbUser) {
         setUser(null);
         setProfile(null);
         setLoading(false);
         return;
       }
 
-      setUser(firebaseUser);
-
-      // Đọc hồ sơ user trong Realtime DB: /users/{uid}
-      const userRef = ref(db, `users/${firebaseUser.uid}`);
-      const snap = await get(userRef);
-
-      if (!snap.exists()) {
-        // nếu chưa có thì tạo mới với role guest
-        const payload = {
-          uid: firebaseUser.uid,
-          displayName: firebaseUser.displayName || "",
-          email: firebaseUser.email || "",
-          role: "guest",
-          status: "pending",
-          xp: 0,
-          coin: 0,
-          level: 1,
-          createdAt: Date.now(),
-          lastActiveAt: Date.now(),
-        };
-        await set(userRef, payload);
-        setProfile(payload);
-      } else {
-        setProfile(snap.val());
+      setUser(fbUser);
+      try {
+        const profileData = await ensureUserProfile(fbUser);
+        setProfile(profileData);
+      } catch (err) {
+        console.error("ensureUserProfile error:", err);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
     return () => unsub();
   }, []);
 
-  const isLoggedIn = !!user;
-  const role = profile?.role || "guest";
-  const status = profile?.status || "none";
-  const isAdmin = role === "admin";
+  const value = useMemo(() => {
+    const role = profile?.role || "guest";
+    const status = profile?.status || "none";
 
-  const value = {
-    user,
-    profile,
-    loading,
-    isLoggedIn,
-    role,
-    status,
-    isAdmin,
-    loginWithGoogle,
-    logout,
-  };
+    return {
+      user,
+      profile,
+      loading,
+      role,
+      status,
+      isLoggedIn: !!user,
+      isAdmin: role === "admin",
+      isStaff: role === "admin" || role === "associate",
+
+      loginWithGoogle: async () => {
+        await loginWithGoogle();
+      },
+
+      logout: async () => {
+        await firebaseLogout();
+      },
+    };
+  }, [user, profile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
+  return ctx;
 }
