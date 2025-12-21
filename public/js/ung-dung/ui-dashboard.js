@@ -1,60 +1,60 @@
+// public/js/ung-dung/ui-dashboard.js
 
-// js/ung-dung/ui-dashboard.js
-// Render giao dien Dashboard
-// Chi doc profile tu state, khong lam viec truc tiep voi Firestore
+import { getUiAccountStatus } from "../data/userData.js";
 
+/**
+ * Dashboard cho user
+ * @param {HTMLElement} container
+ * @param {import("firebase/auth").User} firebaseUser
+ * @param {Object} profile - hồ sơ user trong Firestore
+ */
 export function renderDashboard(container, firebaseUser, profile) {
-  if (!firebaseUser || !profile) {
-    container.innerHTML = "<p>Ban chua dang nhap. Hay dang nhap de xem dashboard.</p>";
-    return;
-  }
-
-  const p = profile;
+  const p = profile || {};
   const metrics = p.metrics || {};
   const traits = p.traits || {};
 
+  const uiStatus = getUiAccountStatus(p); // normal | pending | banned
+
   container.innerHTML = `
-    <p>Xin chao, <strong>${p.displayName || firebaseUser.email}</strong></p>
-    <p>Email: ${p.email || firebaseUser.email}</p>
-    <p>Role: <strong>${p.role || "guest"}</strong></p>
-    <p>Status: <strong>${p.status || "none"}</strong></p>
+    <div class="card">
+      <div class="card-body">
+        <h3 class="card-title">Dashboard</h3>
+        <p>Xin chào, <strong>${p.displayName || firebaseUser.displayName || firebaseUser.email}</strong></p>
+        <p>Email: <strong>${p.email || firebaseUser.email}</strong></p>
+        <p>Role: <strong>${p.role || "guest"}</strong></p>
+        <p>Status: <strong>${uiStatus}</strong></p>
+        ${p.id ? `<p>ID: <strong>${p.id}</strong></p>` : ""}
 
-    <h3>Chi so cong khai</h3>
-    <ul>
-      <li>XP: ${p.xp ?? 0}</li>
-      <li>Coin: ${p.coin ?? 0}</li>
-      <li>Level: ${p.level ?? 1}</li>
-    </ul>
+        <h5 style="margin-top:20px;">Chỉ số công khai</h5>
+        <ul>
+          <li>XP: ${p.xp || 0}</li>
+          <li>Coin: ${p.coin || 0}</li>
+          <li>Level: ${p.level || 1}</li>
+        </ul>
 
-    <h3>Chi so FI / PI / PI*</h3>
-    <ul>
-      <li>FI: ${metrics.fi ?? 0}</li>
-      <li>PI: ${metrics.pi ?? 0}</li>
-      <li>PI*: ${metrics.piStar ?? 0}</li>
-    </ul>
+        <h5>Chỉ số FI / PI / PI*</h5>
+        <ul>
+          <li>FI: ${metrics.fi || 0}</li>
+          <li>PI: ${metrics.pi || 0}</li>
+          <li>PI*: ${metrics.piStar || 0}</li>
+        </ul>
 
-    ${
-      p.joinCode
-        ? `<p>ID / Join code: <strong>${p.joinCode}</strong></p>`
-        : ""
-    }
+        <details style="margin-top:12px;">
+          <summary>6 chỉ số hành vi (chỉ admin và bạn quan tâm)</summary>
+          <ul>
+            <li>Competitiveness: ${traits.competitiveness || 0}</li>
+            <li>Creativity: ${traits.creativity || 0}</li>
+            <li>Perfectionism: ${traits.perfectionism || 0}</li>
+            <li>Playfulness: ${traits.playfulness || 0}</li>
+            <li>Self improvement: ${traits.selfImprovement || 0}</li>
+            <li>Sociability: ${traits.sociability || 0}</li>
+          </ul>
+        </details>
 
-    <details>
-      <summary>6 chi so hanh vi (chi admin va ban quan tam)</summary>
-      <ul>
-        <li>Competitiveness: ${traits.competitiveness ?? 0}</li>
-        <li>Creativity: ${traits.creativity ?? 0}</li>
-        <li>Perfectionism: ${traits.perfectionism ?? 0}</li>
-        <li>Playfulness: ${traits.playfulness ?? 0}</li>
-        <li>Self improvement: ${traits.selfImprovement ?? 0}</li>
-        <li>Sociability: ${traits.sociability ?? 0}</li>
-      </ul>
-    </details>
-
-    ${
-      p.role === "guest"
-        ? `<p>Ban hien la guest. Hay vao tab "Cong thanh vien" de gui yeu cau.</p>`
-        : `<p>Ban da la ${p.role}. He thong se bo sung them nhiem vu va bao cao trong tuong lai.</p>`
-    }
+        <p style="margin-top:16px;font-size:0.9rem;color:#666;">
+          Hệ thống sẽ bổ sung thêm nhiệm vụ và báo cáo trong tương lai.
+        </p>
+      </div>
+    </div>
   `;
 }
