@@ -1,34 +1,43 @@
-// src/components/Navbar.jsx
-import React, { useContext } from "react";
+// ví dụ trong Navbar.jsx
 import { Link } from "react-router-dom";
-import { AuthContext } from "../AuthContext.jsx";
-// nếu có ThemeContext thì vẫn import như cũ:
- import { ThemeContext } from "../theme.jsx";
+import { useAuth } from "../AuthContext";
+import { useTheme } from "../theme"; // nếu bạn có ThemeContext riêng
 
-function Navbar() {
-  const { firebaseUser, role, isAdmin, logout } = useContext(AuthContext);
+export default function Navbar() {
+  const { user, isAdmin, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme(); // nếu có
 
   return (
-    <nav className="navbar">
-      <div className="navbar-left">
-        <Link to="/">Fanpage Lab</Link>
-      </div>
+    <header style={{ padding: 16 }}>
+      <Link to="/">Fanpage Lab</Link>
 
-      <div className="navbar-right">
-        {firebaseUser && (
-          <>
-            <span>{firebaseUser.displayName}</span>
-            {isAdmin && (
-              <Link to="/admin/users" className="nav-link">
-                Admin tools
-              </Link>
-            )}
-            <button onClick={logout}>Logout</button>
-          </>
-        )}
-      </div>
-    </nav>
+      {user && (
+        <>
+          <Link to="/dashboard" style={{ marginLeft: 12 }}>
+            Dashboard
+          </Link>
+
+          {isAdmin && (
+            <Link to="/admin/users" style={{ marginLeft: 12 }}>
+              Admin tools
+            </Link>
+          )}
+
+          <button onClick={toggleTheme} style={{ marginLeft: 12 }}>
+            Đổi theme
+          </button>
+
+          <button onClick={logout} style={{ marginLeft: 12 }}>
+            Logout
+          </button>
+        </>
+      )}
+
+      {!user && (
+        <Link to="/login" style={{ marginLeft: 12 }}>
+          Đăng nhập
+        </Link>
+      )}
+    </header>
   );
 }
-
-export default Navbar;
