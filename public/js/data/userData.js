@@ -16,6 +16,7 @@ import {
 const DEFAULT_PROFILE = {
   role: "guest",       // guest | member | associate | admin
   status: "none",      // none | pending | approved | rejected
+  id: "",                // se duoc gan bang generateXncId() khi tao user
   xp: 0,
   coin: 0,
   level: 1,
@@ -102,32 +103,32 @@ export async function updateUserTraitsAndMetrics(uid, traitsPatch = {}, metricsP
 }
 // =======================
 // Helper map status cho UI
-// UI chỉ dùng 3 trạng thái: normal / pending / banned
+// UI chi dung 3 trang thai: normal / pending / banned
 // =======================
 export function getUiAccountStatus(profile) {
   const raw = (profile && profile.status) || "none";
 
-  if (raw === "banned") return "banned";   // tài khoản bị cấm
-  if (raw === "pending") return "pending"; // đang chờ duyệt
+  if (raw === "banned") return "banned";   // tai khoan bi cam
+  if (raw === "pending") return "pending"; // dang cho duyet
 
-  // các trạng thái còn lại (none, approved, rejected, ...) đều xem là bình thường
+  // cac trang thai con lai (none, approved, rejected, ...) xem la binh thuong
   return "normal";
 }
 
 // =======================
-// Helper sinh ID XNC + ngày + 7 số random
-// Ví dụ: XNC2512210000457
+// Helper sinh ID XNC + ngay + 7 so random
+// Vi du: XNC2512210000457
 // =======================
 export function generateXncId() {
   const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2); // 2 số cuối của năm
+  const yy = String(now.getFullYear()).slice(-2); // 2 so cuoi cua nam
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
 
   const random = Math.floor(Math.random() * 10_000_000)
     .toString()
-    .padStart(7, "0"); // 7 số
+    .padStart(7, "0"); // 7 so
 
-  // XNC + yy + mm + dd + 7 số = 16 ký tự
+  // XNC + yy + mm + dd + 7 so = 16 ky tu
   return `XNC${yy}${mm}${dd}${random}`;
 }
