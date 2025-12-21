@@ -1,54 +1,99 @@
 // src/App.jsx
+
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./AuthContext";
+import { ThemeProvider } from "./theme";
+
+import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import { useAuth } from "./AuthContext";
-//import AdminUsers from "./pages/admin/AdminUsers";
-//import AdminPanel from "./pages/admin/AdminPanel";
 import JoinGate from "./pages/JoinGate";
+import AdminPanel from "./pages/admin/AdminPanel";
+import AdminUsers from "./pages/admin/AdminUsers";
 
-function PrivateRoute({ children }) {
-  const { user, checkingAuth } = useAuth();
+// Yêu cầu đăng nhập
+function RequireAuth({ children }) {
+  const { isLoggedIn, loading } = useAuth();
 
-  if (checkingAuth) {
-    return <p style={{ textAlign: "center", marginTop: 40 }}>Đang kiểm tra đăng nhập...</p>;
+  if (loading) {
+    return <div style={{ padding: 24 }}>Đang kiểm tra đăng nhập...</div>;
   }
 
-  if (!user) {
+  if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
   }
 
   return children;
 }
 
-export default function App() {
+// Yêu cầu quyền admin
+function RequireAdmin({ children }) {
+  const { isAdmin, loading } = useAuth();
+
+  if (loading) {
+    return <div style={{ padding: 24 }}>Đang kiểm tra quyền...</div>;
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+function AppShell() {
   return (
-    <BrowserRouter>
+    <>
+      <Navbar />
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
         <Route path="/login" element={<Login />} />
 
         <Route
           path="/dashboard"
           element={
-            <PrivateRoute>
+            <RequireAuth>
               <Dashboard />
-            </PrivateRoute>
+            </RequireAuth>
           }
         />
 
-        {/* Sau này bạn mở lại admin tools ở đây */}
-        {/*
         <Route
-          path="/admin/users"
+          path="/join"
           element={
-            <PrivateRoute>
-              <AdminUsers />
-            </PrivateRoute>
+            <RequireAuth>
+              <JoinGate />
+            </RequireAuth>
           }
         />
-        */}
+
+        <Route
+          path="/admin"
+          element={
+            <RequireAdmin>
+              <AdminPanel />
+            </RequireAdmin>
+          }
+        >
+          <Route index element={<Navigate to="users" replace />} />
+          <Route path="users" element={<AdminUsers />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
-    </BrowserRouter>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppShell />
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
