@@ -1,78 +1,60 @@
 // src/AuthContext.jsx
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useMemo,
-} from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  auth,
-  loginWithGoogle,
-  logout as firebaseLogout,
-  ensureUserProfile,
-} from "./firebase";
+import { auth, loginWithGoogle as fbLoginWithGoogle, logout as fbLogout } from "./firebase";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null); // Firebase user
-  const [profile, setProfile] = useState(null); // data trong Realtime DB
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true); // Đang kiểm tra lần đầu
+  const [loading, setLoading] = useState(false);          // Loading khi bấm nút login/logout
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      if (!fbUser) {
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
-
-      setUser(fbUser);
-      try {
-        const profileData = await ensureUserProfile(fbUser);
-        setProfile(profileData);
-      } catch (err) {
-        console.error("ensureUserProfile error:", err);
-      } finally {
-        setLoading(false);
-      }
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser || null);
+      setCheckingAuth(false); // => kết thúc “Đang kiểm tra đăng nhập…”
     });
 
     return () => unsub();
   }, []);
 
-  const value = useMemo(() => {
-    const role = profile?.role || "guest";
-    const status = profile?.status || "none";
+  const loginWithGoogle = async () => {
+    try {
+      setLoading(true);
+      await fbLoginWithGoogle();
+      // onAuthStateChanged sẽ tự cập nhật user
+    } catch (err) {
+      console.error("Login error:", err);
+      alert("Đăng nhập thất bại, bạn thử lại nhé.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return {
-      user,
-      profile,
-      loading,
-      role,
-      status,
-      isLoggedIn: !!user,
-      isAdmin: role === "admin",
-      isStaff: role === "admin" || role === "associate",
+  const logout = async () => {
+    try {
+      setLoading(true);
+      await fbLogout();
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      loginWithGoogle: async () => {
-        await loginWithGoogle();
-      },
-
-      logout: async () => {
-        await firebaseLogout();
-      },
-    };
-  }, [user, profile]);
+  const value = {
+    user,
+    checkingAuth,
+    loading,
+    loginWithGoogle,
+    logout,
+    // tạm thời chưa dùng role/status, sau này bạn nối vào Firestore
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
-  return ctx;
+  return useContext(AuthContext);
 }
