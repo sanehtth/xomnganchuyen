@@ -86,6 +86,22 @@ export function renderJoinGate(container, firebaseUser, profile, onProfileUpdate
 //========================= het doan dang ky member ===============
 
   const btn = document.getElementById("join-request-btn");
+  // URL kênh YouTube (sửa thành kênh của bạn)
+const CHANNEL_URL = "https://www.youtube.com/@xomnganchuyen";
+
+// Nút mở kênh YouTube
+document.getElementById("subChannelBtn").addEventListener("click", () => {
+  window.open(CHANNEL_URL, "_blank");
+});
+
+// Checkbox
+const checkbox = document.getElementById("subscribedCheckbox");
+
+// Mở khóa nút gửi yêu cầu
+checkbox.addEventListener("change", () => {
+  btn.disabled = !checkbox.checked;
+});
+
   if (btn) {
     btn.addEventListener("click", async () => {
       try {
