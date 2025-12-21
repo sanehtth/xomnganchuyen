@@ -1,52 +1,45 @@
-﻿// src/pages/Dashboard.jsx
+// src/pages/Dashboard.jsx
 import React from "react";
-import { useAuth } from "../AuthContext";
+import { Link } from "react-router-dom";
+import { useAuth } from "../AuthContext.jsx";
 
-function Dashboard() {
-  const { firebaseUser, profile, theme, setTheme } = useAuth();
+export default function Dashboard() {
+  const { loading, isLoggedIn, user, profile, role, status } = useAuth();
 
-  if (!firebaseUser) {
-    return <div>Bạn cần đăng nhập trước.</div>;
-  }
-
-  const isGuest = profile?.role === "guest";
-  const isPending = profile?.status === "pending";
+  if (loading) return <p>Đang tải...</p>;
+  if (!isLoggedIn) return <p>Bạn chưa đăng nhập.</p>;
 
   return (
-    <div style={{ padding: 40 }}>
+    <div className="card">
       <h1>Fanpage Lab (beta)</h1>
+      <p className="mt-2">
+        Xin chào, <strong>{user?.displayName || user?.email}</strong>
+      </p>
 
-      <h2>Xin chào, {profile?.displayName || firebaseUser.email}</h2>
-      <p>Email: {firebaseUser.email}</p>
-      <p>Role: {profile?.role}</p>
-      <p>Status: {profile?.status}</p>
+      <p className="mt-2">Email: {user?.email}</p>
+      <p>Role: {role}</p>
+      <p>Status: {status}</p>
 
-      <h3>Chỉ số công khai</h3>
+      <h3 className="mt-3">Chỉ số công khai</h3>
       <ul>
         <li>XP: {profile?.xp ?? 0}</li>
         <li>Coin: {profile?.coin ?? 0}</li>
         <li>Level: {profile?.level ?? 1}</li>
       </ul>
 
-      {isGuest && !isPending && (
-        <p>
-          Bạn đang là guest. Vào trang{" "}
-          <a href="/join">Cổng đăng ký VIP</a> để gửi yêu cầu.
+      {role === "guest" && (
+        <p className="mt-3">
+          Bạn hiện là guest. Vào trang{" "}
+          <Link to="/join">Cổng đăng ký VIP</Link> để gửi yêu cầu.
         </p>
       )}
 
-      {isPending && (
-        <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
+      {role !== "guest" && (
+        <p className="mt-3">
+          Bạn đã là <strong>{role}</strong>. Hệ thống sẽ dần bổ sung thêm tool
+          và nhiệm vụ.
+        </p>
       )}
-
-      <div style={{ marginTop: 20 }}>
-        <span>Theme hiện tại: {theme}</span>{" "}
-        <button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
-          Đổi theme
-        </button>
-      </div>
     </div>
   );
 }
-
-export default Dashboard;
