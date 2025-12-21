@@ -1,67 +1,42 @@
-// src/pages/Dashboard.jsx
-
-import { Link } from "react-router-dom";
+import React from "react";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
-import { useTheme } from "../theme";
 
 export default function Dashboard() {
-  const { firebaseUser, profile, isAdmin, loading } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { firebaseUser, profile, loading } = useAuth();
 
   if (loading) {
-    return <main className="app-shell">Đang tải dữ liệu...</main>;
+    return <p>Đang kiểm tra đăng nhập...</p>;
   }
 
   if (!firebaseUser) {
-    return (
-      <main className="app-shell">
-        <p>Bạn chưa đăng nhập.</p>
-        <Link to="/login" className="btn btn-primary">
-          Về trang đăng nhập
-        </Link>
-      </main>
-    );
+    return <Navigate to="/login" replace />;
   }
 
+  const displayName =
+    profile?.displayName || firebaseUser.displayName || "Bạn";
+  const email = profile?.email || firebaseUser.email || "";
+  const role = profile?.role || "guest";
+  const status = profile?.status || "none";
   const xp = profile?.xp ?? 0;
   const coin = profile?.coin ?? 0;
   const level = profile?.level ?? 1;
 
   return (
-    <main className="app-shell">
+    <div>
       <h1>Fanpage Lab (beta)</h1>
-      <p>
-        Xin chào,{" "}
-        {profile?.displayName || firebaseUser.displayName || firebaseUser.email}
-      </p>
-      <p>Email: {profile?.email || firebaseUser.email}</p>
+      <p>Xin chào, {displayName}.</p>
+      {email && <p>Email: {email}</p>}
 
-      <section className="mt-4">
-        <h2>Chỉ số công khai</h2>
-        <ul>
-          <li>XP: {xp}</li>
-          <li>Coin: {coin}</li>
-          <li>Level: {level}</li>
-        </ul>
-      </section>
+      <p>Role: {role}</p>
+      <p>Status: {status}</p>
 
-      <section className="mt-4">
-        <h2>Theme</h2>
-        <p>Theme hiện tại: {theme === "light" ? "Light" : "Dark"}</p>
-        <button className="btn" onClick={toggleTheme}>
-          Đổi theme
-        </button>
-      </section>
-
-      {isAdmin && (
-        <section className="mt-4">
-          <h2>Khu admin</h2>
-          <p>Bạn là admin, có thể quản lý user và sau này thêm tool.</p>
-          <Link to="/admin" className="btn btn-primary">
-            Vào admin panel
-          </Link>
-        </section>
-      )}
-    </main>
+      <h2>Chỉ số công khai</h2>
+      <ul>
+        <li>XP: {xp}</li>
+        <li>Coin: {coin}</li>
+        <li>Level: {level}</li>
+      </ul>
+    </div>
   );
 }
