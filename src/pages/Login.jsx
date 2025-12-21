@@ -1,46 +1,38 @@
 // src/pages/Login.jsx
-import React from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../AuthContext.jsx";
+import { useAuth } from "../AuthContext";
 
 export default function Login() {
-  const { isLoggedIn, user, loading, loginWithGoogle } = useAuth();
+  const { user, checkingAuth, loading, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
-  if (loading) {
-    return <p>Đang kiểm tra đăng nhập...</p>;
-  }
+  // Nếu đã đăng nhập rồi thì không cho ở lại /login
+  useEffect(() => {
+    if (!checkingAuth && user) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [checkingAuth, user, navigate]);
 
-  // Đã đăng nhập
-  if (isLoggedIn) {
+  if (checkingAuth) {
+    // Chỉ hiện cái này đúng 1 lần lúc load trang
     return (
-      <div className="card">
+      <main style={{ padding: 40 }}>
         <h1>Fanpage Lab</h1>
-        <p>Đăng nhập để vào hệ thống tuyển người & đào tạo.</p>
-
-        <p className="mt-3">
-          Đang đăng nhập: <strong>{user?.email}</strong>
-        </p>
-
-        <button
-          className="btn btn-primary mt-3"
-          onClick={() => navigate("/dashboard")}
-        >
-          Vào dashboard
-        </button>
-      </div>
+        <p>Đang kiểm tra đăng nhập...</p>
+      </main>
     );
   }
 
-  // Chưa đăng nhập
+  // Đã kiểm tra xong mà chưa có user => cho bấm đăng nhập
   return (
-    <div className="card">
+    <main style={{ padding: 40 }}>
       <h1>Fanpage Lab</h1>
       <p>Đăng nhập để vào hệ thống tuyển người & đào tạo.</p>
 
-      <button className="btn btn-primary mt-3" onClick={loginWithGoogle}>
-        Đăng nhập với Google
+      <button onClick={loginWithGoogle} disabled={loading}>
+        {loading ? "Đang đăng nhập..." : "Đăng nhập với Google"}
       </button>
-    </div>
+    </main>
   );
 }
