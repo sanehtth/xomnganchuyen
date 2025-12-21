@@ -1,93 +1,89 @@
-// src/AuthContext.jsx
+// AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { auth, listenUser, loginWithGoogle, logout } from "./firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import { auth, db } from "./firebase";
+import { ref, get, set } from "firebase/database";
 
-export const AuthContext = createContext(null);
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [firebaseUser, setFirebaseUser] = useState(null); // user của Firebase Auth
-  const [userRecord, setUserRecord] = useState(null);      // user trong Realtime DB
+  const [user, setUser] = useState(null);      // user từ Firebase Auth
+  const [profile, setProfile] = useState(null); // hồ sơ trong DB (role, xp, coin,...)
   const [loading, setLoading] = useState(true);
 
-  // Theo dõi trạng thái đăng nhập Firebase
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      setFirebaseUser(user || null);
+  // đăng nhập với Google
+  async function loginWithGoogle() {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+    // phần còn lại do onAuthStateChanged xử lý
+  }
 
-      if (!user) {
-        setUserRecord(null);
+  // đăng xuất
+  function logout() {
+    return signOut(auth);
+  }
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        setUser(null);
+        setProfile(null);
         setLoading(false);
         return;
       }
 
-      // Lắng nghe dữ liệu user trong Realtime DB
-      const stopListen = listenUser(user.uid, (data) => {
-        setUserRecord(data);
-        setLoading(false);
-      });
+      setUser(firebaseUser);
 
-      return () => stopListen();
+      // Đọc hồ sơ user trong Realtime DB: /users/{uid}
+      const userRef = ref(db, `users/${firebaseUser.uid}`);
+      const snap = await get(userRef);
+
+      if (!snap.exists()) {
+        // nếu chưa có thì tạo mới với role guest
+        const payload = {
+          uid: firebaseUser.uid,
+          displayName: firebaseUser.displayName || "",
+          email: firebaseUser.email || "",
+          role: "guest",
+          status: "pending",
+          xp: 0,
+          coin: 0,
+          level: 1,
+          createdAt: Date.now(),
+          lastActiveAt: Date.now(),
+        };
+        await set(userRef, payload);
+        setProfile(payload);
+      } else {
+        setProfile(snap.val());
+      }
+
+      setLoading(false);
     });
 
     return () => unsub();
   }, []);
 
-  const handleLoginGoogle = async () => {
-    setLoading(true);
-    try {
-      const { user, userRecord } = await loginWithGoogle();
-      setFirebaseUser(user);
-      setUserRecord(userRecord);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    setLoading(true);
-    try {
-      await logout();
-      setFirebaseUser(null);
-      setUserRecord(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const role = userRecord?.role ?? "guest";
-  const status = userRecord?.status ?? "none";
-
+  const isLoggedIn = !!user;
+  const role = profile?.role || "guest";
+  const status = profile?.status || "none";
   const isAdmin = role === "admin";
-  const isMember = role === "member";
-  const isAssociate = role === "associate";
 
   const value = {
-    // thô
-    firebaseUser,
-    userRecord,
+    user,
+    profile,
     loading,
-
-    // thông tin hay dùng
+    isLoggedIn,
     role,
     status,
     isAdmin,
-    isMember,
-    isAssociate,
-
-    // action
-    loginWithGoogle: handleLoginGoogle,
-    logout: handleLogout,
+    loginWithGoogle,
+    logout,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// hook tiện dùng trong mọi component
 export function useAuth() {
   return useContext(AuthContext);
 }
