@@ -1,83 +1,74 @@
-﻿// src/pages/JoinGate.jsx
+// src/pages/JoinGate.jsx
 import React, { useState } from "react";
-import { useAuth } from "../AuthContext";
-import { requestVip } from "../firebase";
+import { useAuth } from "../AuthContext.jsx";
+import { requestVip } from "../firebase.js";
 
-/**
- * JoinGate: Trang để guest gửi yêu cầu trở thành member.
- * Điều kiện:
- *  - role = guest
- *  - status = none  => chưa gửi yêu cầu
- *  - status = pending => báo đang chờ
- */
-function JoinGate() {
-  const { firebaseUser, profile } = useAuth();
-  const [sending, setSending] = useState(false);
-  const [done, setDone] = useState(false);
+export default function JoinGate() {
+  const { loading, isLoggedIn, user, profile, status, role } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  if (!firebaseUser) {
-    return <div>Bạn cần đăng nhập trước.</div>;
-  }
+  if (loading) return <p>Đang tải...</p>;
+  if (!isLoggedIn) return <p>Bạn cần đăng nhập trước.</p>;
 
-  if (profile?.status === "pending") {
-    return (
-      <div style={{ padding: 40 }}>
-        <h1>Cổng đăng ký VIP</h1>
-        <p>Xin chào, {profile.displayName || profile.email}</p>
-        <p>Yêu cầu VIP của bạn đang chờ admin duyệt.</p>
-      </div>
-    );
-  }
-
-  if (profile?.role === "member" || profile?.role === "contributor") {
-    return (
-      <div style={{ padding: 40 }}>
-        <h1>Cổng đăng ký VIP</h1>
-        <p>Bạn đã là VIP ({profile.role}).</p>
-        <p>ID thành viên: {profile.joinCode || "(admin chưa tạo mã)"}</p>
-      </div>
-    );
-  }
-
-  const handleRequestVip = async () => {
-    if (!firebaseUser) return;
-    setSending(true);
+  const handleRequest = async () => {
+    if (!user) return;
+    setSubmitting(true);
+    setError("");
     try {
-      // tạo mã joinCode đơn giản: 8 ký tự random
-      const joinCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-      await requestVip(firebaseUser.uid, joinCode);
-      setDone(true);
+      await requestVip(user.uid);
+    } catch (err) {
+      console.error(err);
+      setError("Có lỗi khi gửi yêu cầu, thử lại sau.");
     } finally {
-      setSending(false);
+      setSubmitting(false);
     }
   };
 
-  if (done) {
-    return (
-      <div style={{ padding: 40 }}>
-        <h1>Cổng đăng ký VIP</h1>
-        <p>Đã gửi yêu cầu VIP thành công.</p>
-        <p>Vui lòng chờ admin duyệt.</p>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ padding: 40 }}>
+    <div className="card" style={{ padding: 30 }}>
       <h1>Cổng đăng ký VIP</h1>
-      <p>Xin chào, {profile?.displayName || profile?.email}</p>
-      <p>Hiện tại bạn là <b>guest</b>.</p>
 
-      <ol>
-        <li>Đầu tiên: sub kênh YouTube của bạn.</li>
-        <li>Sau đó bấm nút dưới để gửi yêu cầu VIP.</li>
-      </ol>
+      <p className="mt-2">
+        Xin chào, <strong>{profile?.displayName || user?.displayName}</strong>
+      </p>
 
-      <button disabled={sending} onClick={handleRequestVip}>
-        {sending ? "Đang gửi..." : "Gửi yêu cầu VIP"}
-      </button>
+      {role !== "guest" && (
+        <p className="mt-3">
+          Bạn đã là <strong>{role}</strong>. Không cần gửi yêu cầu nữa.
+        </p>
+      )}
+
+      {role === "guest" && status === "none" && (
+        <>
+          <p className="mt-3">
+            Bạn hiện là guest. Nếu đã làm đủ bước (sub kênh, tham gia hoạt
+            động...), hãy bấm nút dưới để gửi yêu cầu VIP.
+          </p>
+          <button
+            className="btn btn-primary mt-3"
+            onClick={handleRequest}
+            disabled={submitting}
+          >
+            {submitting ? "Đang gửi..." : "Gửi yêu cầu VIP"}
+          </button>
+        </>
+      )}
+
+      {status === "pending" && (
+        <p className="mt-3">
+          Yêu cầu VIP đang chờ admin duyệt. Khi được duyệt, bạn sẽ thấy role và
+          joinCode ở trang dashboard.
+        </p>
+      )}
+
+      {status === "approved" && (
+        <p className="mt-3">
+          Yêu cầu của bạn đã được duyệt. Hãy xem Dashboard để lấy ID / joinCode.
+        </p>
+      )}
+
+      {error && <p className="mt-3" style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }
-
-export default JoinGate;
