@@ -1,221 +1,290 @@
-// public/js/ung-dung/ui-admin.js
+// js/ung-dung/ui-admin.js
+// Man hinh Admin Panel: xem danh sach user, loc, duyet, doi role
 
-import { fetchAllUsers, approveUser, setUserRole } from "../data/membershipData.js";
+import {
+  fetchAllUsers,
+  approveUser,
+  setUserRole,
+} from "../data/membershipData.js";
+import { getUiAccountStatus } from "../data/userData.js";
 
-/**
- * Admin Panel
- * @param {HTMLElement} container
- * @param {import("firebase/auth").User} firebaseUser
- */
-export async function renderAdminPanel(container, firebaseUser) {
+// Ham chinh duoc main.js goi
+// container: element chua noi dung
+// firebaseUser: user dang login (auth)
+// profile: profile trong Firestore cua user dang login
+// onProfileUpdate: callback khi admin doi thong tin chinh minh
+export async function loadAndRenderAdmin(container, firebaseUser, profile, onProfileUpdate) {
+  // Khong login
+  if (!firebaseUser || !profile) {
+    container.innerHTML = `
+      <div class="card">
+        <p>Ban can dang nhap de xem Admin Panel.</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Khong phai admin
+  if (profile.role !== "admin") {
+    container.innerHTML = `
+      <div class="card">
+        <p>Ban khong co quyen truy cap khu vuc Admin.</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Khung giao dien admin
   container.innerHTML = `
     <div class="card">
-      <div class="card-body">
-        <h3 class="card-title">Admin Panel</h3>
-        <p>Xin chao admin, ${firebaseUser.email}</p>
-        <p id="admin-message" style="color:#666;font-size:0.9rem;">Da duyệt user.</p>
+      <h2>Admin Panel</h2>
+      <p>Xin chao, <strong>${profile.displayName || firebaseUser.email}</strong> (admin)</p>
 
-        <div style="display:flex;gap:8px;align-items:center;margin:12px 0;">
-          <label>Loc theo role:
-            <select id="filter-role" class="form-select form-select-sm" style="width:auto;display:inline-block;">
-              <option value="">Tat ca</option>
-              <option value="guest">guest</option>
-              <option value="member">member</option>
-              <option value="admin">admin</option>
-            </select>
-          </label>
+      <div style="margin: 12px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <label>
+          Loc theo role:
+          <select id="admin-filter-role">
+            <option value="">Tat ca</option>
+            <option value="guest">Guest</option>
+            <option value="member">Member</option>
+            <option value="associate">Associate</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+        <label>
+          Loc theo status:
+          <select id="admin-filter-status">
+            <option value="">Tat ca</option>
+            <option value="none">None</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="banned">Banned</option>
+          </select>
+        </label>
 
-          <label>Loc theo status:
-            <select id="filter-status" class="form-select form-select-sm" style="width:auto;display:inline-block;">
-              <option value="">Tat ca</option>
-              <option value="none">none</option>
-              <option value="pending">pending</option>
-              <option value="approved">approved</option>
-              <option value="rejected">rejected</option>
-              <option value="banned">banned</option>
-            </select>
-          </label>
+        <button id="admin-approve-selected" class="btn btn-primary">
+          Duyet (approve) nhung user da check
+        </button>
+      </div>
 
-          <button id="bulk-approve-btn" class="btn btn-primary btn-sm">Duyet da chon</button>
-          <button id="bulk-reject-btn" class="btn btn-secondary btn-sm">Tu choi da chon</button>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table table-sm" id="users-table">
-            <thead>
-              <tr>
-                <th><input type="checkbox" id="select-all"></th>
-                <th>Email</th>
-                <th>Ten</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>XP</th>
-                <th>Coin</th>
-                <th>Level</th>
-                <th>FI</th>
-                <th>PI</th>
-                <th>PI*</th>
-                <th>JoinCode</th>
-                <th>Hanh dong</th>
-              </tr>
-            </thead>
-            <tbody id="users-tbody"></tbody>
-          </table>
-        </div>
+      <div style="overflow-x:auto;">
+        <table class="table table-striped" style="min-width:900px;">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="admin-check-all" /></th>
+              <th>Email</th>
+              <th>Ten</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>XP</th>
+              <th>Coin</th>
+              <th>Level</th>
+              <th>FI</th>
+              <th>PI</th>
+              <th>PI*</th>
+              <th>JoinCode</th>
+              <th>Hanh dong</th>
+            </tr>
+          </thead>
+          <tbody id="admin-users-tbody">
+            <tr><td colspan="13">Dang tai danh sach nguoi dung...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   `;
 
-  const tbody = document.getElementById("users-tbody");
-  const filterRole = document.getElementById("filter-role");
-  const filterStatus = document.getElementById("filter-status");
-  const selectAll = document.getElementById("select-all");
-  const bulkApproveBtn = document.getElementById("bulk-approve-btn");
-  const bulkRejectBtn = document.getElementById("bulk-reject-btn");
-  const messageEl = document.getElementById("admin-message");
+  const tbody = document.getElementById("admin-users-tbody");
+  const filterRole = document.getElementById("admin-filter-role");
+  const filterStatus = document.getElementById("admin-filter-status");
+  const checkAll = document.getElementById("admin-check-all");
+  const approveSelectedBtn = document.getElementById("admin-approve-selected");
 
   let allUsers = [];
 
-  function showMessage(text, color = "#666") {
-    if (!messageEl) return;
-    messageEl.textContent = text;
-    messageEl.style.color = color;
+  // Tai danh sach user tu Firestore
+  try {
+    allUsers = await fetchAllUsers();
+  } catch (err) {
+    console.error("Loi fetchAllUsers:", err);
+    tbody.innerHTML = `<tr><td colspan="13">Khong tai duoc danh sach user.</td></tr>`;
+    return;
   }
 
-  async function loadUsers() {
-    allUsers = await fetchAllUsers();
-    renderTable();
+  function applyFilters(list) {
+    const roleVal = filterRole.value;
+    const statusVal = filterStatus.value;
+
+    return list.filter((u) => {
+      if (roleVal && u.role !== roleVal) return false;
+      if (statusVal && u.status !== statusVal) return false;
+      return true;
+    });
   }
 
   function renderTable() {
-    if (!tbody) return;
+    const filtered = applyFilters(allUsers);
 
-    const roleFilter = filterRole?.value || "";
-    const statusFilter = filterStatus?.value || "";
-
-    const filtered = allUsers.filter((u) => {
-      if (roleFilter && u.role !== roleFilter) return false;
-      if (statusFilter && u.status !== statusFilter) return false;
-      return true;
-    });
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="13">Khong co user phu hop.</td></tr>`;
+      return;
+    }
 
     tbody.innerHTML = filtered
-      .map(
-        (u) => `
-      <tr>
-        <td>
-          <input type="checkbox" class="user-select" data-uid="${u.uid}">
-        </td>
-        <td>${u.email || ""}</td>
-        <td>${u.displayName || ""}</td>
-        <td>${u.role || "guest"}</td>
-        <td>${u.status || "none"}</td>
-        <td>${u.xp || 0}</td>
-        <td>${u.coin || 0}</td>
-        <td>${u.level || 1}</td>
-        <td>${(u.metrics && u.metrics.fi) || 0}</td>
-        <td>${(u.metrics && u.metrics.pi) || 0}</td>
-        <td>${(u.metrics && u.metrics.piStar) || 0}</td>
-        <td>${u.joinCode || ""}</td>
-        <td>
-          <button class="btn btn-outline-success btn-sm single-approve" data-uid="${u.uid}">Duyet</button>
-          <button class="btn btn-outline-danger btn-sm single-reject" data-uid="${u.uid}">Tu choi</button>
-          <select class="form-select form-select-sm role-select" data-uid="${u.uid}" style="width:auto;display:inline-block;margin-left:4px;">
-            <option value="guest" ${u.role === "guest" ? "selected" : ""}>guest</option>
-            <option value="member" ${u.role === "member" ? "selected" : ""}>member</option>
-            <option value="admin" ${u.role === "admin" ? "selected" : ""}>admin</option>
-          </select>
-        </td>
-      </tr>
-    `
-      )
+      .map((u) => {
+        const traits = u.traits || {};
+        const metrics = u.metrics || {};
+        const statusUi = getUiAccountStatus(u);
+
+        return `
+          <tr data-uid="${u.uid}">
+            <td><input type="checkbox" class="admin-row-check" /></td>
+            <td>${u.email || ""}</td>
+            <td>${u.displayName || ""}</td>
+            <td>${u.role || "guest"}</td>
+            <td>${u.status || "none"} (${statusUi})</td>
+            <td>${u.xp ?? 0}</td>
+            <td>${u.coin ?? 0}</td>
+            <td>${u.level ?? 1}</td>
+            <td>${metrics.fi ?? 0}</td>
+            <td>${metrics.pi ?? 0}</td>
+            <td>${metrics.piStar ?? 0}</td>
+            <td>${u.joinCode || ""}</td>
+            <td>
+              <select class="admin-role-select">
+                <option value="guest" ${u.role === "guest" ? "selected" : ""}>guest</option>
+                <option value="member" ${u.role === "member" ? "selected" : ""}>member</option>
+                <option value="associate" ${u.role === "associate" ? "selected" : ""}>associate</option>
+                <option value="admin" ${u.role === "admin" ? "selected" : ""}>admin</option>
+              </select>
+              <button class="btn btn-sm admin-approve-btn">Duyet</button>
+              <button class="btn btn-sm admin-reject-btn">Tu choi</button>
+            </td>
+          </tr>
+        `;
+      })
       .join("");
-
-    // gắn event cho nút đơn lẻ
-    tbody.querySelectorAll(".single-approve").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        const uid = e.currentTarget.dataset.uid;
-        await approveUser(uid, true);
-        showMessage("Da duyet 1 user.", "#28a745");
-        await loadUsers();
-      });
-    });
-
-    tbody.querySelectorAll(".single-reject").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        const uid = e.currentTarget.dataset.uid;
-        await approveUser(uid, false);
-        showMessage("Da tu choi 1 user.", "#e55353");
-        await loadUsers();
-      });
-    });
-
-    tbody.querySelectorAll(".role-select").forEach((sel) => {
-      sel.addEventListener("change", async (e) => {
-        const uid = e.currentTarget.dataset.uid;
-        const role = e.currentTarget.value;
-        await setUserRole(uid, role);
-        showMessage("Da cap nhat role.", "#17a2b8");
-        await loadUsers();
-      });
-    });
   }
 
-  function getSelectedUids() {
-    const boxes = document.querySelectorAll(".user-select:checked");
-    return Array.from(boxes).map((cb) => cb.dataset.uid);
-  }
+  renderTable();
 
-  // Check / uncheck all
-  if (selectAll) {
-    selectAll.addEventListener("change", () => {
-      const checked = selectAll.checked;
-      document.querySelectorAll(".user-select").forEach((cb) => {
-        cb.checked = checked;
-      });
-    });
-  }
+  // --- Su kien loc ---
+  filterRole.addEventListener("change", renderTable);
+  filterStatus.addEventListener("change", renderTable);
 
-  if (bulkApproveBtn) {
-    bulkApproveBtn.addEventListener("click", async () => {
-      const uids = getSelectedUids();
-      if (!uids.length) {
-        alert("Chua chon user nao.");
-        return;
+  // --- Check all ---
+  checkAll.addEventListener("change", () => {
+    const checked = checkAll.checked;
+    document
+      .querySelectorAll(".admin-row-check")
+      .forEach((cb) => (cb.checked = checked));
+  });
+
+  // --- Duyet hang loat ---
+  approveSelectedBtn.addEventListener("click", async () => {
+    const checkedRows = Array.from(
+      document.querySelectorAll(".admin-row-check:checked")
+    );
+
+    if (!checkedRows.length) {
+      alert("Hay chon it nhat 1 user de duyet.");
+      return;
+    }
+
+    if (!confirm(`Duyet ${checkedRows.length} user?`)) return;
+
+    try {
+      for (const cb of checkedRows) {
+        const tr = cb.closest("tr");
+        const uid = tr.dataset.uid;
+        const roleSelect = tr.querySelector(".admin-role-select");
+        const newRole = roleSelect ? roleSelect.value : "member";
+
+        await approveUser(uid, "approve", newRole);
+
+        // Cap nhat trong allUsers (status, role)
+        const target = allUsers.find((u) => u.uid === uid);
+        if (target) {
+          target.status = "approved";
+          target.role = newRole;
+        }
       }
-      if (!confirm(`Duyet ${uids.length} user?`)) return;
 
-      for (const uid of uids) {
-        await approveUser(uid, true);
+      renderTable();
+      alert("Da duyet xong cac user da chon.");
+    } catch (err) {
+      console.error("Loi duyet hang loat:", err);
+      alert("Co loi xay ra khi duyet user.");
+    }
+  });
+
+  // --- Su kien tren tung dong (approve / reject + doi role) ---
+  tbody.addEventListener("click", async (e) => {
+    const tr = e.target.closest("tr[data-uid]");
+    if (!tr) return;
+    const uid = tr.dataset.uid;
+
+    if (e.target.classList.contains("admin-approve-btn")) {
+      const roleSelect = tr.querySelector(".admin-role-select");
+      const newRole = roleSelect ? roleSelect.value : "member";
+
+      try {
+        await approveUser(uid, "approve", newRole);
+        const target = allUsers.find((u) => u.uid === uid);
+        if (target) {
+          target.status = "approved";
+          target.role = newRole;
+        }
+        renderTable();
+      } catch (err) {
+        console.error("Loi approve user:", err);
+        alert("Khong duyet duoc user.");
       }
-      showMessage(`Da duyet ${uids.length} user.`, "#28a745");
-      await loadUsers();
-    });
-  }
+    }
 
-  if (bulkRejectBtn) {
-    bulkRejectBtn.addEventListener("click", async () => {
-      const uids = getSelectedUids();
-      if (!uids.length) {
-        alert("Chua chon user nao.");
-        return;
+    if (e.target.classList.contains("admin-reject-btn")) {
+      if (!confirm("Ban co chac muon tu choi user nay?")) return;
+      try {
+        await approveUser(uid, "reject");
+        const target = allUsers.find((u) => u.uid === uid);
+        if (target) {
+          target.status = "rejected";
+        }
+        renderTable();
+      } catch (err) {
+        console.error("Loi reject user:", err);
+        alert("Khong tu choi duoc user.");
       }
-      if (!confirm(`Tu choi ${uids.length} user?`)) return;
+    }
+  });
 
-      for (const uid of uids) {
-        await approveUser(uid, false);
+  // --- Thay doi role ngay khi chon (khong can duyet) ---
+  tbody.addEventListener("change", async (e) => {
+    if (!e.target.classList.contains("admin-role-select")) return;
+
+    const tr = e.target.closest("tr[data-uid]");
+    if (!tr) return;
+    const uid = tr.dataset.uid;
+    const newRole = e.target.value;
+
+    try {
+      await setUserRole(uid, newRole);
+      const target = allUsers.find((u) => u.uid === uid);
+      if (target) {
+        target.role = newRole;
       }
-      showMessage(`Da tu choi ${uids.length} user.`, "#e55353");
-      await loadUsers();
-    });
-  }
 
-  if (filterRole) {
-    filterRole.addEventListener("change", renderTable);
-  }
-  if (filterStatus) {
-    filterStatus.addEventListener("change", renderTable);
-  }
-
-  await loadUsers();
+      // Neu admin dang doi chinh minh thi cap nhat profile tren UI
+      if (profile.uid === uid && typeof onProfileUpdate === "function") {
+        onProfileUpdate({
+          ...profile,
+          role: newRole,
+        });
+      }
+    } catch (err) {
+      console.error("Loi setUserRole:", err);
+      alert("Khong thay doi duoc role.");
+    }
+  });
 }
