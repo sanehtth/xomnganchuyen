@@ -22,6 +22,20 @@ export function renderJoinGate(
   if (!container) return;
 
   const p = profile || {};
+// === Nếu là admin thì không cần join gate ===
+  if (p.role === "admin") {
+    container.innerHTML = `
+      <div class="card">
+        <div class="card-body">
+          <h3 class="card-title">Cộng thành viên</h3>
+          <p>Bạn là <strong>admin</strong>. Không cần gửi yêu cầu trở thành member.</p>
+          <p>Hãy dùng tab <strong>Admin</strong> để quản lý người dùng và báo cáo.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
   const uiStatus = getUiAccountStatus(p); // normal | pending | banned
 
   // --- Tinh trang nut & text theo status ---
