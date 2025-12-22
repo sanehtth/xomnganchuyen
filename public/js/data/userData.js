@@ -145,12 +145,12 @@ export async function ensureUserDocument(firebaseUser) {
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
 
-  // Chuẩn hoá email, dùng để check admin
+  // Chuẩn hoá email để check admin
   const email = (firebaseUser.email || "").toLowerCase();
   const adminList = ADMIN_EMAILS.map((e) => e.toLowerCase());
   const isAdminEmail = adminList.includes(email);
 
-  // ====== CHƯA CÓ PROFILE -> TẠO MỚI ======
+  // ===== 1. Chưa có document -> tạo mới =====
   if (!snap.exists()) {
     const baseProfile = buildBaseProfile(firebaseUser);
 
@@ -163,12 +163,12 @@ export async function ensureUserDocument(firebaseUser) {
     return baseProfile;
   }
 
-  // ====== ĐÃ CÓ PROFILE -> MERGE + CẬP NHẬT ======
+  // ===== 2. Đã có document -> merge + cập nhật =====
   const current = snap.data() || {};
 
   const patched = {
-    ...DEFAULT_PROFILE,
-    ...current,
+    ...DEFAULT_PROFILE,                // khung mặc định
+    ...current,                        // dữ liệu cũ
     uid,
     email: firebaseUser.email || current.email || "",
     displayName:
@@ -191,6 +191,7 @@ export async function ensureUserDocument(firebaseUser) {
 
   return patched;
 }
+
 
 // =======================
 // getUserDocument: đọc profile từ Firestore
