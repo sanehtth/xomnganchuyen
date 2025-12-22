@@ -1,5 +1,7 @@
 // public/js/data/userData.js
 // Lam viec voi collection `users` (Firestore) - khong dung DOM o day
+// Danh sách email được coi là admin gốc
+const ADMIN_EMAILS = ["sane.htth@gmail.com"]; // thêm email khác nếu cần
 
 import {
   db,
@@ -154,7 +156,49 @@ export async function ensureUserDocument(firebaseUser) {
   const uid = firebaseUser.uid;
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
+   // ======Nếu email thuộc admin list -> luôn admin + approved
+    const isAdminEmail = ADMIN_EMAILS.includes(firebaseUser.email || "");
+    let patched = { ...data };
 
+    if (isAdminEmail) {
+      patched.role = "admin";
+      patched.status = "approved";
+    }
+
+    await updateDoc(userRef, {
+      ...patched,
+      lastActiveAt: serverTimestamp(),
+    });
+
+    return {
+      uid,
+      ...DEFAULT_PROFILE,
+      ...patched,
+    };
+  
+// ====== CHƯA CÓ PROFILE -> TẠO MỚI ======
+  const isAdminEmail = ADMIN_EMAILS.includes(firebaseUser.email || "");
+
+  const baseProfile = {
+    ...DEFAULT_PROFILE,
+    uid,
+    id: generateXncId(),
+    email: firebaseUser.email || "",
+    displayName: firebaseUser.displayName || firebaseUser.email || "User",
+    photoUrl: firebaseUser.photoURL || "",
+    createdAt: serverTimestamp(),
+    lastActiveAt: serverTimestamp(),
+  };
+
+  if (isAdminEmail) {
+    baseProfile.role = "admin";
+    baseProfile.status = "approved";
+  }
+
+  await setDoc(userRef, baseProfile);
+  return baseProfile;
+
+//====== het phan xet email admin====
   if (!snap.exists()) {
     const baseProfile = buildBaseProfile(firebaseUser);
     await setDoc(userRef, baseProfile);
