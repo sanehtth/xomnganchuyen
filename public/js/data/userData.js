@@ -78,15 +78,21 @@ export async function ensureUserDocument(firebaseUser) {
 
   // Chua co profile -> tao moi
   const baseProfile = {
-    ...DEFAULT_PROFILE,
-    uid,
-    id: generateXncId(), // GAN ID XNC o day
-    email: firebaseUser.email || "",
-    displayName: firebaseUser.displayName || firebaseUser.email || "User",
-    photoUrl: firebaseUser.photoURL || "",
-    createdAt: serverTimestamp(),
-    lastActiveAt: serverTimestamp(),
-  };
+  ...DEFAULT_PROFILE,
+  uid,
+  id: generateXncId(),
+  displayName: firebaseUser.displayName || "User",
+  email: firebaseUser.email,
+  photoUrl: firebaseUser.photoURL || "",
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+  joinAt: serverTimestamp(),
+  lastActiveAt: serverTimestamp(),
+  statusHistory: [
+    { value: "normal", time: serverTimestamp() }
+  ]
+};
+
 
   await setDoc(userRef, baseProfile);
   return baseProfile;
