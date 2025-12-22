@@ -15,12 +15,16 @@ import {
 // Cac gia tri mac dinh cho user moi
 // =======================
 const DEFAULT_PROFILE = {
-  role: "guest",       // guest | member | associate | admin
-  status: "none",      // none | pending | approved | rejected (UI se map lai)
-  id: "",              // se duoc gan bang generateXncId() khi tao user
-  xp: 0,
-  coin: 0,
-  level: 1,
+  profile: {
+    role: "guest",       // guest | member | associate | admin
+    status: "none",      // none | pending | approved | rejected (UI se map lai)
+    id: "",              // se duoc gan bang generateXncId() khi tao user
+  },
+  stats: {  
+    xp: 0,  
+    coin: 0,  
+    level: 1,
+    },
   joinCode: "",
   // 6 chi so hanh vi
   traits: {
@@ -37,6 +41,10 @@ const DEFAULT_PROFILE = {
     pi: 0,
     piStar: 0,
   },
+  supporter:{ verifiedCount },
+
+  refCode,
+  referredBy
 };
 
 // KHÔNG import generateXncId tu chinh file nay nua
