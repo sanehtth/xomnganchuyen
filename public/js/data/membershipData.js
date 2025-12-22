@@ -8,8 +8,11 @@ import {
   query,
   orderBy,
   doc,
+  getDoc,
   updateDoc,
 } from "../he-thong/firebase.js";
+
+import { generateRefCode } from "./userData.js";
 
 // =======================
 // Lay danh sach user cho Admin Panel
@@ -50,12 +53,22 @@ export async function approveUser(uid, action, newRole) {
   const userRef = doc(db, "users", uid);
 
   if (action === "approve") {
+    // lay thong tin user hien tai de kiem tra joinCode
+    const snap = await getDoc(userRef);
+    const data = snap.exists() ? snap.data() : {};
+
     const patch = {
       status: "approved",
     };
 
     if (newRole) {
       patch.role = newRole;
+    }
+
+    // Neu user chua co joinCode -> sinh moi
+    if (!data.joinCode || String(data.joinCode).trim() === "") {
+      const seed = uid || data.email || "";
+      patch.joinCode = generateRefCode(seed);
     }
 
     await updateDoc(userRef, patch);
