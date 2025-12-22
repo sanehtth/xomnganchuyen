@@ -67,6 +67,28 @@ function showView(target) {
 let currentUser = null;
 let currentProfile = null;
 
+function reRenderAllViews() {
+  if (!currentUser || !currentProfile) return;
+
+  // Dashboard
+  if (dashboardContent) {
+    renderDashboard(dashboardContent, currentUser, currentProfile);
+  }
+
+  // Cổng thành viên
+  if (joinContent && navJoin) {
+    renderJoinGate(joinContent, currentUser, currentProfile);
+  }
+
+  // Admin (neu dang o tab admin)
+  if (viewAdmin && adminContent && viewAdmin.style.display === "block") {
+    loadAndRenderAdmin(adminContent, currentUser, currentProfile, (p) => {
+      currentProfile = p;
+      reRenderAllViews();
+    });
+  }
+}
+
 subscribeAuthState(async (firebaseUser, profile) => {
   currentUser = firebaseUser;
   currentProfile = profile;
@@ -108,8 +130,18 @@ subscribeAuthState(async (firebaseUser, profile) => {
   if (navAdmin) {
     if (profile.role === "admin") {
       navAdmin.style.display = "inline-block";
+
+      // Co the preload admin content (khong bat buoc)
       if (viewAdmin && adminContent) {
-        await loadAndRenderAdmin(adminContent, firebaseUser);
+        await loadAndRenderAdmin(
+          adminContent,
+          firebaseUser,
+          profile,
+          (newProfile) => {
+            currentProfile = newProfile;
+            reRenderAllViews();
+          }
+        );
       }
     } else {
       navAdmin.style.display = "none";
@@ -174,8 +206,11 @@ if (navJoin) {
 if (navAdmin) {
   navAdmin.addEventListener("click", () => {
     showView(viewAdmin);
-    if (currentUser && adminContent) {
-      loadAndRenderAdmin(adminContent, currentUser);
+    if (currentUser && currentProfile && adminContent) {
+      loadAndRenderAdmin(adminContent, currentUser, currentProfile, (p) => {
+        currentProfile = p;
+        reRenderAllViews();
+      });
     }
   });
 }
