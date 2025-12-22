@@ -149,8 +149,8 @@ export function getUiAccountStatus(profile) {
 // Helper sinh ID XNC + ngay + 7 so random
 // Vi du: XNC2512210000457
 // =======================
-export function generateXncId() {
-  const now = new Date();
+/*export function generateXncId() {
+/  const now = new Date();
   const yy = String(now.getFullYear()).slice(-2); // 2 so cuoi cua nam
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
@@ -161,4 +161,4 @@ export function generateXncId() {
 
   // XNC + yy + mm + dd + 7 so = 16 ky tu
   return `XNC${yy}${mm}${dd}${random}`;
-}
+}*/
