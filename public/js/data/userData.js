@@ -177,9 +177,7 @@ export async function ensureUserDocument(firebaseUser) {
     };
   
 // ====== CHƯA CÓ PROFILE -> TẠO MỚI ======
-  const isAdminEmail = ADMIN_EMAILS.includes(firebaseUser.email || "");
-
-  const baseProfile = {
+    const baseProfile = {
     ...DEFAULT_PROFILE,
     uid,
     id: generateXncId(),
