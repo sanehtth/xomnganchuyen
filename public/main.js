@@ -2,7 +2,7 @@
 // main.js
 // Entry chinh: ket noi auth + UI + admin
 
-import { subscribeAuthState, loginWithGoogle, logout, authState } from "./js/he-thong/auth.js";
+import { subscribeAuthState, getAuthState } from "./he-thong/auth.js";
 import { renderDashboard } from "./js/ung-dung/ui-dashboard.js";
 import { renderJoinGate } from "./js/ung-dung/ui-join.js";
 import { loadAndRenderAdmin } from "./js/ung-dung/ui-admin.js";
@@ -12,6 +12,18 @@ import { initTheme } from "./js/ung-dung/ui-theme.js";
 const navDashboard = document.getElementById("nav-dashboard");
 const navJoin = document.getElementById("nav-join");
 const navAdmin = document.getElementById("nav-admin");
+
+subscribeAuthState(async(user)=>{
+
+    if(!user){
+        // user chưa đăng nhập → về trang landing
+        window.location.href = "/index.html";
+        return;
+    }
+
+    // Người dùng đã login → render dashboard
+    loadAndRenderDashboard();
+});
 
 const viewDashboard = document.getElementById("view-dashboard");
 const viewJoin = document.getElementById("view-join");
