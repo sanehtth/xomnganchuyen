@@ -1,135 +1,136 @@
-// js/ung-dung/ui-join.js
-// Man hinh "Cong thanh vien"
+// public/js/ung-dung/ui-join.js
+// UI: Cong thanh vien (Member gate)
 
+/**
+ * @param {HTMLElement} container  The <div> noi hien UI cong thanh vien
+ * @param {object|null} firebaseUser  user tu Firebase Auth
+ * @param {object|null} profile  document user trong Firestore
+ * @param {function} onProfileUpdate  callback khi profile thay doi (optional)
+ * @param {function} setStatusText    ham cap nhat dong trang thai o nav (optional)
+ */
+
+import { getUiAccountStatus } from "../data/userData.js";
 import { requestMembership } from "../data/membershipData.js";
-import { getUserDocument, getUiAccountStatus } from "../data/userData.js";
 
-export function renderJoinGate(container, firebaseUser, profile, onProfileUpdate, setStatus) {
-  if (!firebaseUser || !profile) {
-    container.innerHTML = `
-      <div class="card">
-        <p>Ban can dang nhap de su dung chuc nang nay.</p>
-      </div>
-    `;
-    return;
+export function renderJoinGate(
+  container,
+  firebaseUser,
+  profile,
+  onProfileUpdate,
+  setStatusText
+) {
+  if (!container) return;
+
+  const p = profile || {};
+  const uiStatus = getUiAccountStatus(p); // normal | pending | banned
+
+  // --- Tinh trang nut & text theo status ---
+  let buttonDisabled = false;
+  let buttonLabel = "Gửi yêu cầu trở thành member";
+  let helperText =
+    "Nếu bạn đã hoàn thành các điều kiện (sub kênh, tham gia hoạt động,...), hãy gửi yêu cầu để trở thành member.";
+
+  if (uiStatus === "pending") {
+    buttonDisabled = true;
+    buttonLabel = "Đã gửi yêu cầu. Vui lòng chờ admin duyệt.";
+    helperText = "Yêu cầu của bạn đang được xử lý. Vui lòng chờ admin.";
+  } else if (uiStatus === "banned") {
+    buttonDisabled = true;
+    buttonLabel = "Tài khoản đã bị cấm";
+    helperText = "Bạn đã bị cấm truy cập hệ thống. Nếu có nhầm lẫn, hãy liên hệ admin.";
   }
 
-  const p = profile;
-  const uiStatus = getUiAccountStatus(p); // normal / pending / banned
-
-  // ============ 1. Neu tai khoan bi cam ============
-  if (uiStatus === "banned") {
-    container.innerHTML = `
-      <div class="card">
-        <h2>Cong thanh vien</h2>
-        <p>Ban hien dang bi <strong>cam</strong> khoi cong dong. Neu ban cho rang co sai sot, hay lien he admin.</p>
-      </div>
-    `;
-    setStatus("banned");
-    return;
-  }
-
-  // ============ 2. Neu la admin ============
-  if(p.role==="admin"){
-     joinSection.style.display="none";
-     return;
-}
-
-
-  // ============ 3. Neu da la member/associate binh thuong ============
-  if (p.role === "member" || p.role === "associate") {
-    container.innerHTML = `
-      <div class="card">
-        <h2>Cong thanh vien</h2>
-        <p>Ban hien la <strong>${p.role}</strong>, status: <strong>normal</strong>.</p>
-        <p>Ban da la thanh vien cua he thong, khong can gui them yeu cau nao nua.</p>
-      </div>
-    `;
-    setStatus("normal");
-    return;
-  }
-
-  // ============ 4. Cac truong hop con lai (guest) ============
-  const isPending = uiStatus === "pending";
-
+  // --- Render HTML vao chinh container (KHONG dung joinSection nua) ---
   container.innerHTML = `
     <div class="card">
-      <h2>Cong thanh vien</h2>
+      <div class="card-body">
+        <h3 class="card-title">Cộng thành viên</h3>
+        <p>Ban hiện là <strong>${p.role || "guest"}</strong>, status: <strong>${uiStatus}</strong>.</p>
+        <p>
+          Nếu bạn đã hoàn thành các điều kiện (sub kênh, tham gia hoạt động,...),
+          hãy gửi yêu cầu để trở thành member.
+        </p>
 
-      <p>Ban hien la <strong>${p.role}</strong>, status: <strong>${uiStatus}</strong>.</p>
-      <p>
-        Neu ban da hoan thanh cac dieu kien (sub kenh, tham gia hoat dong,...),
-        hay gui yeu cau de tro thanh member.
-      </p>
+        <hr />
 
-      <hr />
+        <div style="margin:12px 0;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="subscribedCheck" />
+            <span>Đã sub kênh YouTube của hệ thống.</span>
+          </label>
+          <small style="display:block;margin-top:4px;color:#666;">
+            Bấm nút này để mở kênh YouTube của hệ thống. Nếu chưa sub thì sub,
+            nếu đã sub từ trước thì chỉ cần đóng cửa sổ lại. Sau khi chắc chắn đã sub,
+            hãy tick vào ô trên để mở nút "Gửi yêu cầu".
+          </small>
+        </div>
 
-      <div style="margin:12px 0;">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <input type="checkbox" id="subscribedCheckBox">
-          <span>Da sub kenh YouTube cua he thong.</span>
-        </label>
-        <small>
-          Bam nut nay de mo YouTube. Neu chua sub thi sub,
-          neu da sub tu truoc thi chi can dong cua so lai.
-          Sau khi ban chac chan da sub, hay tick vao o tren
-          de mo nut "Gui yeu cau".
-        </small>
+        <button
+          id="join-request-btn"
+          class="btn btn-primary"
+          ${buttonDisabled ? "disabled" : ""}
+        >
+          ${buttonLabel}
+        </button>
+
+        <p id="join-helper" style="margin-top:8px;color:#666;">
+          ${helperText}
+        </p>
       </div>
-
-      <button id="join-request-btn" class="btn btn-primary" disabled>
-        ${isPending ? "Da gui yeu cau. Vui long cho admin duyet." : "Gui yeu cau tro thanh member"}
-      </button>
-
-      <p id="join-helper" style="margin-top:8px;color:#666;"></p>
     </div>
   `;
 
-  const btn = document.getElementById("join-request-btn");
-  const checkbox = document.getElementById("subscribedCheckBox");
-  const helper = document.getElementById("join-helper");
+  const checkbox = container.querySelector("#subscribedCheck");
+  const btn = container.querySelector("#join-request-btn");
+  const helper = container.querySelector("#join-helper");
 
-  // Neu dang pending thi chi hien thong bao, khong cho bam nua
-  if (isPending) {
+  if (!btn || !checkbox) return;
+
+  // Neu dang pending / banned thi khong cho bam gi nua
+  if (buttonDisabled) {
     checkbox.disabled = true;
-    btn.disabled = true;
-    helper.textContent = "Yeu cau cua ban dang duoc xu ly. Vui long cho admin duyet.";
     return;
   }
 
-  // Kich hoat nut khi user tick "Da sub"
+  // Chua tick => khong cho bam
+  btn.disabled = !checkbox.checked;
+
+  // Khi tick/bo tick checkbox => enable/disable button
   checkbox.addEventListener("change", () => {
     btn.disabled = !checkbox.checked;
   });
 
-  // Xu ly gui yeu cau
+  // Xu ly su kien bam "Gửi yêu cầu"
   btn.addEventListener("click", async () => {
-    if (!checkbox.checked) return;
+    if (!firebaseUser) {
+      alert("Bạn cần đăng nhập trước khi gửi yêu cầu.");
+      return;
+    }
 
     try {
       btn.disabled = true;
-      btn.textContent = "Dang gui yeu cau...";
-      helper.textContent = "";
-
+      btn.textContent = "Đang gửi yêu cầu...";
       await requestMembership(firebaseUser.uid);
 
-      // Cap nhat status local
-      setStatus("pending");
-
-      // Lay lai profile moi
-      const fresh = await getUserDocument(firebaseUser.uid);
-      if (fresh && typeof onProfileUpdate === "function") {
-        onProfileUpdate(fresh);
+      // Cap nhat trang thai local
+      const nextProfile = { ...p, status: "pending" };
+      if (typeof onProfileUpdate === "function") {
+        onProfileUpdate(nextProfile);
       }
 
-      btn.textContent = "Da gui yeu cau. Vui long cho admin duyet.";
-      helper.textContent = "Ban co the tiep tuc sinh hoat trong thoi gian cho duyet.";
-      checkbox.disabled = true;
+      if (helper) {
+        helper.textContent = "Đã gửi yêu cầu. Vui lòng chờ admin duyệt.";
+      }
+      if (typeof setStatusText === "function") {
+        setStatusText("Đã gửi yêu cầu. Vui lòng chờ admin duyệt.");
+      }
+
+      btn.textContent = "Đã gửi yêu cầu. Vui lòng chờ admin duyệt.";
     } catch (err) {
-      console.error(err);
-      alert("Gui yeu cau that bai");
+      console.error("Lỗi gửi yêu cầu thành member:", err);
+      alert("Gửi yêu cầu thất bại. Vui lòng thử lại.");
       btn.disabled = false;
-      btn.textContent = "Gui yeu cau tro thanh member";
+      btn.textContent = "Gửi yêu cầu trở thành member";
     }
   });
 }
