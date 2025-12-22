@@ -1,5 +1,5 @@
-// public/main.js
-// Điểm nối giữa auth + UI + admin
+// main.js
+// Diem noi giua auth + UI chinh
 
 import {
   subscribeAuthState,
@@ -11,79 +11,129 @@ import { renderDashboard } from "./js/ung-dung/ui-dashboard.js";
 import { renderJoinGate } from "./js/ung-dung/ui-join.js";
 import { loadAndRenderAdmin } from "./js/ung-dung/ui-admin.js";
 import { initTheme } from "./js/ung-dung/ui-theme.js";
-import { getUiAccountStatus } from "./js/data/userData.js";
 
-// -------------------------
-// Hook DOM elements
-// -------------------------
+// =====================================
+// DOM elements
+// =====================================
 
 const loginBtn = document.getElementById("login-btn");
 const logoutBtn = document.getElementById("logout-btn");
-const navDashboard = document.getElementById("nav-dashboard");
-const navJoin = document.getElementById("nav-join");
-const navAdmin = document.getElementById("nav-admin");
+const statusBar = document.getElementById("status-bar");
+
+const viewDashboard = document.getElementById("view-dashboard");
+const viewJoin = document.getElementById("view-join");
+const viewAdmin = document.getElementById("view-admin");
 
 const dashboardContent = document.getElementById("dashboard-content");
 const joinContent = document.getElementById("join-content");
 const adminContent = document.getElementById("admin-content");
 
-const themeToggleButton = document.getElementById("theme-toggle");
+const navDashboard = document.getElementById("nav-dashboard");
+const navJoin = document.getElementById("nav-join");
+const navAdmin = document.getElementById("nav-admin");
 
-// -------------------------
-// Helper: chuyển tab
-// -------------------------
+// Theme toggle
+const themeToggleBtn = document.getElementById("theme-toggle-btn");
+initTheme(themeToggleBtn);
+
+// Trang landing khi chua dang nhap
+function renderLoggedOutLanding() {
+  if (!dashboardContent) return;
+  dashboardContent.innerHTML = `
+    <div class="card">
+      <h2>Fanpage Lab</h2>
+      <p>Ban chua dang nhap. Hay bam nut "Dang nhap voi Google"
+      o tren de vao he thong.</p>
+    </div>
+  `;
+  if (joinContent) joinContent.innerHTML = "";
+  if (adminContent) adminContent.innerHTML = "";
+  if (statusBar) statusBar.textContent = "Ban chua dang nhap.";
+}
+
+// Helper: chuyen tab
 function showView(target) {
-  const allViews = [dashboardContent, joinContent, adminContent];
+  const allViews = [viewDashboard, viewJoin, viewAdmin];
   allViews.forEach((v) => {
     if (!v) return;
     v.style.display = v === target ? "block" : "none";
   });
 }
 
-// -------------------------
-// Gắn sự kiện nav
-// -------------------------
+// =====================================
+// Xu ly Auth
+// =====================================
 
-if (navDashboard) {
-  navDashboard.addEventListener("click", (e) => {
-    e.preventDefault();
-    showView(dashboardContent);
-  });
-}
+let currentUser = null;
+let currentProfile = null;
 
-if (navJoin) {
-  navJoin.addEventListener("click", (e) => {
-    e.preventDefault();
-    showView(joinContent);
-  });
-}
+subscribeAuthState(async (firebaseUser, profile) => {
+  currentUser = firebaseUser;
+  currentProfile = profile;
 
-if (navAdmin) {
-  navAdmin.addEventListener("click", async (e) => {
-    e.preventDefault();
-    showView(adminContent);
-    // Mỗi lần bấm tab Admin thì load lại danh sách
-    await loadAndRenderAdmin();
-  });
-}
+  if (!firebaseUser || !profile) {
+    // Chua dang nhap -> xoa noi dung nhay cam
+    renderLoggedOutLanding();
+    if (navAdmin) navAdmin.style.display = "none";
+    if (navJoin) navJoin.style.display = "none";
+    if (logoutBtn) logoutBtn.style.display = "none";
+    if (loginBtn) loginBtn.style.display = "inline-block";
+    showView(viewDashboard);
+    return;
+  }
 
-// -------------------------
-// Gắn sự kiện login / logout
-// -------------------------
+  if (statusBar) {
+    statusBar.textContent = `Dang nhap thanh cong. Xin chao, ${
+      profile.displayName || firebaseUser.email
+    }.`;
+  }
+
+  // Nut login / logout
+  if (loginBtn) loginBtn.style.display = "none";
+  if (logoutBtn) logoutBtn.style.display = "inline-block";
+
+  // Dashboard luon co
+  if (dashboardContent) {
+    renderDashboard(dashboardContent, firebaseUser, profile);
+    showView(viewDashboard);
+  }
+
+  // Tab Cong thanh vien
+  if (joinContent && navJoin) {
+    renderJoinGate(joinContent, firebaseUser, profile);
+    navJoin.style.display = "inline-block";
+  }
+
+  // Tab Admin chi hien neu role === 'admin'
+  if (navAdmin) {
+    if (profile.role === "admin") {
+      navAdmin.style.display = "inline-block";
+      if (viewAdmin && adminContent) {
+        await loadAndRenderAdmin(adminContent, firebaseUser);
+      }
+    } else {
+      navAdmin.style.display = "none";
+      if (adminContent) {
+        adminContent.innerHTML = "";
+      }
+    }
+  }
+});
+
+// =====================================
+// Event listeners
+// =====================================
 
 if (loginBtn) {
   loginBtn.addEventListener("click", async () => {
     try {
       loginBtn.disabled = true;
-      loginBtn.textContent = "Đang đăng nhập...";
       await loginWithGoogle();
-      // subscribeAuthState sẽ tự render lại UI
     } catch (err) {
       console.error(err);
-      alert("Đăng nhập thất bại");
+      alert("Dang nhap that bai, vui long thu lai.");
     } finally {
       loginBtn.disabled = false;
-      loginBtn.textContent = "Đăng nhập với Google";
     }
   });
 }
@@ -92,93 +142,43 @@ if (logoutBtn) {
   logoutBtn.addEventListener("click", async () => {
     try {
       logoutBtn.disabled = true;
-      logoutBtn.textContent = "Đang đăng xuất...";
       await logout();
-      // Sau khi logout, quay về trạng thái khách: ẩn nội dung, hiện nút login
-      renderLoggedOut();
+
+      // Sau khi logout -> ve landing an toan
+      renderLoggedOutLanding();
+      if (navAdmin) navAdmin.style.display = "none";
+      if (navJoin) navJoin.style.display = "none";
+      if (loginBtn) loginBtn.style.display = "inline-block";
+      showView(viewDashboard);
     } catch (err) {
       console.error(err);
-      alert("Đăng xuất thất bại");
     } finally {
       logoutBtn.disabled = false;
-      logoutBtn.textContent = "Đăng xuất";
     }
   });
 }
 
-// -------------------------
-// Render khi CHƯA đăng nhập
-// -------------------------
-function renderLoggedOut() {
-  // Ẩn toàn bộ view chính
-  if (dashboardContent) dashboardContent.style.display = "none";
-  if (joinContent) joinContent.style.display = "none";
-  if (adminContent) adminContent.style.display = "none";
-
-  // Ẩn tab admin, tab cộng thành viên vẫn có thể xem giới thiệu
-  if (navAdmin) navAdmin.style.display = "none";
-
-  // Hiện nút đăng nhập
-  if (loginBtn) loginBtn.style.display = "inline-block";
-  if (logoutBtn) logoutBtn.style.display = "none";
-
-  // Có thể gắn thêm redirect sang trang giới thiệu ở đây nếu muốn.
+// Chuyen tab
+if (navDashboard) {
+  navDashboard.addEventListener("click", () => {
+    showView(viewDashboard);
+  });
 }
 
-// -------------------------
-// Render khi ĐÃ đăng nhập
-// -------------------------
-function renderLoggedIn(firebaseUser, profile) {
-  const uiStatus = getUiAccountStatus(profile); // normal | pending | banned
+if (navJoin) {
+  navJoin.addEventListener("click", () => {
+    showView(viewJoin);
+  });
+}
 
-  // Hiện nội dung Dashboard mặc định
-  if (dashboardContent) {
-    dashboardContent.style.display = "block";
-  }
-  if (joinContent) joinContent.style.display = "none";
-
-  // Admin tab chỉ hiện nếu role = admin
-  if (navAdmin) {
-    navAdmin.style.display = profile.role === "admin" ? "inline-block" : "none";
-  }
-
-  // Đổi nút login/logout
-  if (loginBtn) loginBtn.style.display = "none";
-  if (logoutBtn) logoutBtn.style.display = "inline-block";
-
-  // Render Dashboard
-  renderDashboard(dashboardContent, firebaseUser, profile, uiStatus);
-
-  // Render trang Cộng thành viên
-  renderJoinGate(
-    joinContent,
-    firebaseUser,
-    profile,
-    uiStatus,
-    // onProfileUpdate
-    (updatedProfile) => {
-      renderDashboard(dashboardContent, firebaseUser, updatedProfile, getUiAccountStatus(updatedProfile));
+if (navAdmin) {
+  navAdmin.addEventListener("click", () => {
+    showView(viewAdmin);
+    if (currentUser && adminContent) {
+      loadAndRenderAdmin(adminContent, currentUser);
     }
-  );
-
-  // Nếu là admin thì tải luôn dữ liệu admin lần đầu
-  if (profile.role === "admin") {
-    loadAndRenderAdmin();
-  }
+  });
 }
 
-// -------------------------
-// Khởi động hệ thống
-// -------------------------
-
-// 1. Khởi tạo theme (light/dark)
-initTheme(themeToggleButton);
-
-// 2. Lắng nghe auth state
-subscribeAuthState(async (firebaseUser, profile) => {
-  if (!firebaseUser || !profile) {
-    renderLoggedOut();
-    return;
-  }
-  renderLoggedIn(firebaseUser, profile);
-});
+// Khoi dong lan dau
+renderLoggedOutLanding();
