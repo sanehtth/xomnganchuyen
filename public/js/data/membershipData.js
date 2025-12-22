@@ -68,7 +68,7 @@ export async function approveUser(uid, action, newRole) {
     // Neu user chua co joinCode -> sinh moi
     if (!data.joinCode || String(data.joinCode).trim() === "") {
       const seed = uid || data.email || "";
-      patch.joinCode = generateRefCode(seed);
+      patch.joinCode = generateXncId(seed);
     }
 
     await updateDoc(userRef, patch);
