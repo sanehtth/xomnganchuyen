@@ -30,17 +30,11 @@ export function renderJoinGate(container, firebaseUser, profile, onProfileUpdate
   }
 
   // ============ 2. Neu la admin ============
-  if (p.role === "admin") {
-    container.innerHTML = `
-      <div class="card">
-        <h2>Cong thanh vien</h2>
-        <p>Ban hien la <strong>admin</strong>, status: <strong>normal</strong>.</p>
-        <p>Admin khong can gui yeu cau thanh member. Ban co the vao tab <strong>Admin</strong> de quan ly nguoi dung.</p>
-      </div>
-    `;
-    setStatus("normal");
-    return;
-  }
+  if(p.role==="admin"){
+     joinSection.style.display="none";
+     return;
+}
+
 
   // ============ 3. Neu da la member/associate binh thuong ============
   if (p.role === "member" || p.role === "associate") {
