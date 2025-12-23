@@ -1,5 +1,11 @@
 // main.js
 // Điểm nối giữa auth (Firebase) và UI (index.html)
+import { initAuth } from "./he-thong/auth.js";
+
+initAuth((user) => {
+  console.log("Auth ready:", user.uid);
+  document.body.classList.remove("loading");
+});
 
 import {
   subscribeAuthState,
