@@ -1,10 +1,9 @@
 // js/he-thong/firebase.js
 // Khoi tao Firebase + Firestore + Realtime Database
-// Chi lam nhiem vu he thong, khong viet logic giao dien o day
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 
-// ===== Auth =====
+// Auth
 import {
   getAuth,
   GoogleAuthProvider,
@@ -13,7 +12,7 @@ import {
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-// ===== Firestore =====
+// Firestore
 import {
   getFirestore,
   doc,
@@ -23,11 +22,14 @@ import {
   collection,
   getDocs,
   query,
+  where,
   orderBy,
-  serverTimestamp, // Firestore timestamp
+  limit,
+  serverTimestamp,
+  increment,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ===== Realtime Database =====
+// Realtime Database
 import {
   getDatabase,
   ref,
@@ -36,17 +38,13 @@ import {
   update,
   push,
   onValue,
-  off,
-  serverTimestamp as rtdbServerTimestamp, // RTDB timestamp
+  serverTimestamp as rtdbServerTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // Cau hinh Firebase
-// TODO: neu sau nay ban doi project Firebase thi chi can doi doan nay
 const firebaseConfig = {
-  apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
+  apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YspZKXY",
   authDomain: "xomnganchuyen.firebaseapp.com",
-  // Quan trong: RTDB cua project dang o khu vuc asia-southeast1
-  databaseURL: "https://xomnganchuyen-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "xomnganchuyen",
   storageBucket: "xomnganchuyen.firebasestorage.app",
   messagingSenderId: "335661705640",
@@ -64,10 +62,12 @@ const googleProvider = new GoogleAuthProvider();
 // Firestore
 const db = getFirestore(app);
 
-// Realtime Database
+// Realtime DB
 const rtdb = getDatabase(app);
 
-// Export nhung gi can cho cac file khac
+// Alias de tranh nham ten bien
+const realtimeDb = rtdb;
+
 export {
   // core
   app,
@@ -88,17 +88,20 @@ export {
   collection,
   getDocs,
   query,
+  where,
   orderBy,
+  limit,
   serverTimestamp,
+  increment,
 
-  // realtime db
+  // realtime database
   rtdb,
+  realtimeDb,
   ref,
   get,
   set,
   update,
   push,
   onValue,
-  off,
   rtdbServerTimestamp,
 };

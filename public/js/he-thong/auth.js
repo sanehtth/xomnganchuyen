@@ -88,15 +88,7 @@ export function subscribeAuthState(callback) {
   });
 }
 
-// =============================
-// Compatibility layer
-// =============================
-// Một số main.js/phiên bản cũ dùng initAuth(...) thay vì subscribeAuthState(...)
+// Backward-compatible export (mot so file cu import initAuth)
 export function initAuth(callback) {
-  return subscribeAuthState((firebaseUser, profile) => {
-    if (typeof callback === "function") callback(firebaseUser, profile);
-  });
+  return subscribeAuthState(callback);
 }
-
-// Alias nếu có chỗ import logoutUser
-export const logoutUser = logout;
