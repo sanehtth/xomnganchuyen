@@ -9,7 +9,7 @@ import {
 
 import { renderDashboard } from "./js/ung-dung/ui-dashboard.js";
 import { renderJoinGate } from "./js/ung-dung/ui-join.js";
-import { loadAndRenderAdmin } from "./js/ung-dung/ui-admin.js";
+import { renderAdminView } from "./js/ung-dung/ui-admin.js";
 import { initThemeUI } from "./js/ung-dung/ui-theme.js";
 
 // =====================================
