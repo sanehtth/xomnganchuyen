@@ -56,6 +56,10 @@ export async function logout() {
 
 // Lắng nghe thay đổi auth và load hồ sơ user
 export function subscribeAuthState(callback) {
+  // Một số file cũ có thể gọi subscribeAuthState()/initAuth() mà không truyền callback.
+  // Tránh crash "callback is not a function".
+  if (typeof callback !== "function") callback = () => {};
+
   authState.loading = true;
 
   return onAuthStateChanged(auth, async (firebaseUser) => {
@@ -88,7 +92,7 @@ export function subscribeAuthState(callback) {
   });
 }
 
-// Backward-compatible export (mot so file cu import initAuth)
+// Backward-compatible alias: các file cũ dùng initAuth(callback)
 export function initAuth(callback) {
   return subscribeAuthState(callback);
 }
