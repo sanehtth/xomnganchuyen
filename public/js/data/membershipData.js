@@ -53,9 +53,9 @@ export async function approveUser(uid, action, newRole) {
   const userRef = doc(db, "users", uid);
 
   if (action === "approve") {
-    // lay thong tin user hien tai de kiem tra joinCode
+    // Lay du lieu hien tai de backfill joinCode / S_* neu thieu
     const snap = await getDoc(userRef);
-    const data = snap.exists() ? snap.data() : {};
+    const current = snap.exists() ? (snap.data() || {}) : {};
 
     const patch = {
       status: "approved",
@@ -65,16 +65,42 @@ export async function approveUser(uid, action, newRole) {
       patch.role = newRole;
     }
 
-    // Neu user chua co joinCode -> sinh moi
-    if (!data.joinCode || String(data.joinCode).trim() === "") {
+    // Neu user duoc duyet tu truoc (chua co joinCode) thi tao bo sung
+    if (!current.joinCode) {
       patch.joinCode = generateXncId();
     }
 
-    await updateDoc(userRef, patch);
-    return;
-  }
+    // Backfill snapshot S_* (giu tuong thich voi schema moi)
+    patch.S_metrics = current.S_metrics || {
+      S_xp: current.xp ?? 0,
+      S_coin: current.coin ?? 0,
+      S_level: current.level ?? 1,
+    };
 
-  if (action === "reject") {
+    patch.S_behavior = current.S_behavior || {
+      S_FI: current.metrics?.fi ?? 0,
+      S_PI: current.metrics?.pi ?? 0,
+      S_PIStar: current.metrics?.piStar ?? 0,
+    };
+
+    patch.S_traits = current.S_traits || {
+      S_competitiveness: current.traits?.competitiveness ?? 0,
+      S_creativity: current.traits?.creativity ?? 0,
+      S_perfectionism: current.traits?.perfectionism ?? 0,
+      S_playfulness: current.traits?.playfulness ?? 0,
+      S_selfImprovement: current.traits?.selfImprovement ?? 0,
+      S_sociability: current.traits?.sociability ?? 0,
+    };
+
+    patch.S_time = current.S_time || {
+      S_ttfImpactDays: current.timeMetrics?.ttfImpactDays ?? null,
+      S_gvPiStar: current.timeMetrics?.gvPiStar ?? null,
+      S_consistencyScore: current.timeMetrics?.consistencyScore ?? null,
+      S_flag: current.timeMetrics?.flag ?? "NONE",
+    };
+
+    await updateDoc(userRef, patch);
+  } else if (action === "reject") {
     await updateDoc(userRef, {
       status: "rejected",
     });

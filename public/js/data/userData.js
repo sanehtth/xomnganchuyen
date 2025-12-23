@@ -1,7 +1,6 @@
 // public/js/data/userData.js
-// Làm việc với collection `users` (Firestore) - không dùng DOM ở đây
-
-// Danh sách email được coi là admin gốc (super admin)
+// Lam viec voi collection `users` (Firestore) - khong dung DOM o day
+// Danh sách email được coi là admin gốc
 const ADMIN_EMAILS = ["sane.htth@gmail.com"]; // thêm email khác nếu cần
 
 import {
@@ -14,23 +13,24 @@ import {
 } from "../he-thong/firebase.js";
 
 // =======================
-// Helper: sinh ID XNC 16 ký tự
-// Format: XNCYYMMDDXXXXXXX (7 số random)
+// Helper: sinh ID XNC 16 ky tu
+// Vi du: XNC2512210000457
 // =======================
 export function generateXncId() {
   const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
+  const yy = String(now.getFullYear()).slice(-2); // 2 so cuoi cua nam
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
+
   const random = Math.floor(Math.random() * 10_000_000)
     .toString()
-    .padStart(7, "0");
+    .padStart(7, "0"); // 7 so
 
   return `XNC${yy}${mm}${dd}${random}`; // 3 + 2 + 2 + 2 + 7 = 16
 }
 
 // =======================
-// Helper: sinh refCode (mã giới thiệu)
+// Helper: sinh refCode (ma gioi thieu)
 // =======================
 export function generateRefCode(seed = "") {
   const base =
@@ -39,66 +39,127 @@ export function generateRefCode(seed = "") {
       : "XNC";
 
   const short = base.slice(0, 4) || "XNC";
-  const random = Math.floor(Math.random() * 10_000)
+  const random = Math.floor(Math.random() * 1_000_000)
     .toString()
-    .padStart(4, "0");
+    .padStart(6, "0");
 
-  return `${short}${random}`;
+  return `${short}-${random}`; // VD: SANE-023451
 }
 
 // =======================
-// DEFAULT_PROFILE: khung dữ liệu mặc định cho 1 user
+// Schema mac dinh cho user moi
+// Chi them truong, khong xoa truong cu
 // =======================
-export const DEFAULT_PROFILE = {
+const DEFAULT_PROFILE = {
   role: "guest", // guest | member | associate | admin
   status: "none", // none | pending | approved | rejected | banned
 
-  level: 1,
+  // ID noi bo (XNC + ngay + random)
+  id: "",
+
+  // Chi so cong khai
   xp: 0,
   coin: 0,
+  level: 1,
+
+  // Snapshot tren Firestore (prefix S_ de tranh nham voi RTDB)
+  S_metrics: {
+    S_xp: 0,
+    S_coin: 0,
+    S_level: 1,
+  },
 
   joinCode: "",
   refCode: "",
-  id: "", // XNC ID hiển thị
-  email: "",
-  displayName: "",
-  photoUrl: "",
 
-  createdAt: null,
-  lastActiveAt: null,
+  // 6 chi so hanh vi (chi admin xem)
+  traits: {
+    competitiveness: 0,
+    creativity: 0,
+    perfectionism: 0,
+    playfulness: 0,
+    selfImprovement: 0,
+    sociability: 0,
+  },
 
-  // Các chỉ số hành vi / năng lực
+  // Snapshot tren Firestore (prefix S_)
+  S_traits: {
+    S_competitiveness: 0,
+    S_creativity: 0,
+    S_perfectionism: 0,
+    S_playfulness: 0,
+    S_selfImprovement: 0,
+    S_sociability: 0,
+  },
+
+  // 3 chi so FI / PI / PI*
   metrics: {
     fi: 0,
     pi: 0,
     piStar: 0,
   },
 
-  // Các chỉ số theo thời gian
-  timeMetrics: {
-    ttfImpactDays: 0,
-    gvPiStar: 0,
-    consistencyScore: 0,
-    flag: "NONE", // NONE | RISK | DECLINING | ...
+  // Snapshot tren Firestore (prefix S_)
+  S_behavior: {
+    S_FI: 0,
+    S_PI: 0,
+    S_PIStar: 0,
   },
 
-  // Traits tính cách / hành vi
-  traits: {
-    competitiveness: 0,
-    creativity: 0,
-    perfectionism: 0,
-    altruism: 0,
-    socialDrive: 0,
-    discipline: 0,
+  // Chi so thoi gian (admin-only)
+  timeMetrics: {
+    // so ngay tu luc join -> co PI* dau tien
+    ttfImpactDays: null,
+    // toc do tang PI* theo thoi gian
+    gvPiStar: null,
+    // so tuan co hoat dong / tong so tuan
+    consistencyScore: null,
+    // label tong quat: FAST_START | STEADY | PLATEAU | DECLINING | RISK | NONE
+    flag: "NONE",
   },
+
+  // Snapshot tren Firestore (prefix S_)
+  S_time: {
+    S_ttfImpactDays: null,
+    S_gvPiStar: null,
+    S_consistencyScore: null,
+    S_flag: \"NONE\",
+  },
+
+  // Counters cong hien (de giai thich vi sao co PI* / FI)
+  contributionStats: {
+    approvedCount: 0,
+    rejectedCount: 0,
+    helpfulCount: 0,
+    ideaAcceptedCount: 0,
+    assetUsedCount: 0,
+    lastContributionAt: null,
+    activeDays30: 0,
+  },
+
+  // Thong tin he thong khac (khong can show het ra UI)
+  createdAt: null,
+  lastActiveAt: null,
 };
 
 // =======================
-// buildBaseProfile: tạo profile mới từ firebaseUser
+// Helper: map status noi bo -> status cho UI
+// UI chi thay: normal / pending / banned
 // =======================
-export function buildBaseProfile(firebaseUser) {
-  if (!firebaseUser) return { ...DEFAULT_PROFILE };
+export function getUiAccountStatus(profile) {
+  const raw = (profile && profile.status) || "none";
 
+  if (raw === "banned") return "banned";
+  if (raw === "pending") return "pending";
+
+  // cac trang thai con lai (none, approved, rejected, ...) xem la binh thuong
+  return "normal";
+}
+
+// =======================
+// Tao object profile ban dau cho user moi
+// =======================
+function buildBaseProfile(firebaseUser) {
   const uid = firebaseUser.uid;
   const email = firebaseUser.email || "";
   const displayName = firebaseUser.displayName || email || "User";
@@ -117,26 +178,9 @@ export function buildBaseProfile(firebaseUser) {
 }
 
 // =======================
-// getUiAccountStatus: trả về text ngắn để hiển thị UI
-// =======================
-export function getUiAccountStatus(profile) {
-  if (!profile) return "none";
-
-  const status = profile.status || "none";
-
-  if (status === "banned") return "banned";
-  if (status === "rejected") return "rejected";
-  if (status === "pending") return "pending";
-  if (status === "approved") return "normal";
-
-  return "none";
-}
-
-// =======================
 // ensureUserDocument
-// - Nếu chưa có -> tạo profile mới (merge DEFAULT + thông tin firebase)
-// - Nếu có rồi -> merge DEFAULT + data cũ + cập nhật lastActiveAt
-// - Nếu email thuộc ADMIN_EMAILS -> luôn ép role = admin & status = approved
+// - Neu chua co -> tao profile moi (merge DEFAULT + thong tin firebase)
+// - Neu co roi -> merge DEFAULT + data cu + cap nhat lastActiveAt
 // =======================
 export async function ensureUserDocument(firebaseUser) {
   if (!firebaseUser) return null;
@@ -144,75 +188,123 @@ export async function ensureUserDocument(firebaseUser) {
   const uid = firebaseUser.uid;
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
-
-  // Chuẩn hoá email để check admin
-  const email = (firebaseUser.email || "").toLowerCase();
-  const adminList = ADMIN_EMAILS.map((e) => e.toLowerCase());
-  const isAdminEmail = adminList.includes(email);
-
-  // ===== 1. Chưa có document -> tạo mới =====
-  if (!snap.exists()) {
-    const baseProfile = buildBaseProfile(firebaseUser);
+   // ======Nếu email thuộc admin list -> luôn admin + approved
+    const isAdminEmail = ADMIN_EMAILS.includes(firebaseUser.email || "");
+    let patched = { ...data };
 
     if (isAdminEmail) {
-      baseProfile.role = "admin";
-      baseProfile.status = "approved";
+      patched.role = "admin";
+      patched.status = "approved";
     }
 
+    await updateDoc(userRef, {
+      ...patched,
+      lastActiveAt: serverTimestamp(),
+    });
+
+    return {
+      uid,
+      ...DEFAULT_PROFILE,
+      ...patched,
+    };
+  
+// ====== CHƯA CÓ PROFILE -> TẠO MỚI ======
+    const baseProfile = {
+    ...DEFAULT_PROFILE,
+    uid,
+    id: generateXncId(),
+    email: firebaseUser.email || "",
+    displayName: firebaseUser.displayName || firebaseUser.email || "User",
+    photoUrl: firebaseUser.photoURL || "",
+    createdAt: serverTimestamp(),
+    lastActiveAt: serverTimestamp(),
+  };
+
+  if (isAdminEmail) {
+    baseProfile.role = "admin";
+    baseProfile.status = "approved";
+  }
+
+  await setDoc(userRef, baseProfile);
+  return baseProfile;
+
+//====== het phan xet email admin====
+  if (!snap.exists()) {
+    const baseProfile = buildBaseProfile(firebaseUser);
     await setDoc(userRef, baseProfile);
     return baseProfile;
   }
 
-  // ===== 2. Đã có document -> merge + cập nhật =====
   const current = snap.data() || {};
 
-  const patched = {
-    ...DEFAULT_PROFILE,                // khung mặc định
-    ...current,                        // dữ liệu cũ
+  const merged = {
+    ...DEFAULT_PROFILE, // schema mac dinh
+    ...current, // du lieu dang co trong DB
     uid,
     email: firebaseUser.email || current.email || "",
     displayName:
-      firebaseUser.displayName ||
-      current.displayName ||
-      firebaseUser.email ||
-      "User",
+      firebaseUser.displayName || current.displayName || firebaseUser.email || "User",
     photoUrl: firebaseUser.photoURL || current.photoUrl || "",
   };
 
-  if (isAdminEmail) {
-    patched.role = "admin";
-    patched.status = "approved";
+  // ====== Backfill snapshot S_* neu DB cu chua co (giu tuong thich) ======
+  if (!current.S_metrics) {
+    merged.S_metrics = {
+      S_xp: merged.xp ?? 0,
+      S_coin: merged.coin ?? 0,
+      S_level: merged.level ?? 1,
+    };
+  }
+  if (!current.S_traits) {
+    merged.S_traits = {
+      S_competitiveness: merged.traits?.competitiveness ?? 0,
+      S_creativity: merged.traits?.creativity ?? 0,
+      S_perfectionism: merged.traits?.perfectionism ?? 0,
+      S_playfulness: merged.traits?.playfulness ?? 0,
+      S_selfImprovement: merged.traits?.selfImprovement ?? 0,
+      S_sociability: merged.traits?.sociability ?? 0,
+    };
+  }
+  if (!current.S_behavior) {
+    merged.S_behavior = {
+      S_FI: merged.metrics?.fi ?? 0,
+      S_PI: merged.metrics?.pi ?? 0,
+      S_PIStar: merged.metrics?.piStar ?? 0,
+    };
+  }
+  if (!current.S_time) {
+    merged.S_time = {
+      S_ttfImpactDays: merged.timeMetrics?.ttfImpactDays ?? null,
+      S_gvPiStar: merged.timeMetrics?.gvPiStar ?? null,
+      S_consistencyScore: merged.timeMetrics?.consistencyScore ?? null,
+      S_flag: merged.timeMetrics?.flag ?? "NONE",
+    };
   }
 
+
   await updateDoc(userRef, {
-    ...patched,
     lastActiveAt: serverTimestamp(),
+    S_metrics: merged.S_metrics,
+    S_traits: merged.S_traits,
+    S_behavior: merged.S_behavior,
+    S_time: merged.S_time,
   });
 
-  return patched;
+  return merged;
 }
 
-
 // =======================
-// getUserDocument: đọc profile từ Firestore
+// Doc 1 user (theo uid)
 // =======================
 export async function getUserDocument(uid) {
   if (!uid) return null;
-
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
-  if (!snap.exists()) return null;
-
-  const data = snap.data() || {};
-  return {
-    ...DEFAULT_PROFILE,
-    ...data,
-    uid,
-  };
+  return snap.exists() ? snap.data() : null;
 }
 
 // =======================
-// Cập nhật profile (patch bất kỳ field nào)
+// Cap nhat profile (patch bat ky field nao)
 // =======================
 export async function updateUserProfile(uid, patch) {
   if (!uid || !patch) return;
@@ -221,9 +313,9 @@ export async function updateUserProfile(uid, patch) {
 }
 
 // =======================
-// Cập nhật traits + metrics + timeMetrics (admin dùng)
-// traitsPatch, metricsPatch, timeMetricsPatch là các object nhỏ
-// chỉ chứa field cần thay đổi
+// Cap nhat traits + metrics + timeMetrics (admin dung)
+// traitsPatch, metricsPatch, timeMetricsPatch la cac object nho
+// chi chua field can thay doi
 // =======================
 export async function updateUserTraitsAndMetrics(
   uid,

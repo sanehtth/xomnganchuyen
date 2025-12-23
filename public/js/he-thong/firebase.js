@@ -4,7 +4,6 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 
-// ===== Auth =====
 import {
   getAuth,
   GoogleAuthProvider,
@@ -13,7 +12,6 @@ import {
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-// ===== Firestore =====
 import {
   getFirestore,
   doc,
@@ -24,35 +22,36 @@ import {
   getDocs,
   query,
   orderBy,
-  serverTimestamp, // Firestore timestamp
+  serverTimestamp, // Firestore serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ===== Realtime Database =====
 import {
   getDatabase,
   ref,
+  push,
   get,
   set,
   update,
-  push,
+  child,
   onValue,
   off,
-  serverTimestamp as rtdbServerTimestamp, // RTDB timestamp
+  serverTimestamp as rtdbServerTimestamp, // RTDB serverTimestamp
+  increment,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// Cau hinh Firebase
-// TODO: neu sau nay ban doi project Firebase thi chi can doi doan nay
+// =======================
+// Cau hinh Firebase (chi doi doan nay neu doi project)
+// =======================
 const firebaseConfig = {
   apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
   authDomain: "xomnganchuyen.firebaseapp.com",
   projectId: "xomnganchuyen",
-  storageBucket: "xomnganchuyen.firebasestorage.app",
-  messagingSenderId: "335661705640",
-  appId: "1:335661705640:web:8bde062fae1fcb3c99559d",
-  measurementId: "G-21JSZ5G1EX",
+  storageBucket: "xomnganchuyen.appspot.com",
+  messagingSenderId: "639809447264",
+  appId: "1:639809447264:web:7d32f39e4b86c9bd4a6f4c",
+  databaseURL: "https://xomnganchuyen-default-rtdb.asia-southeast1.firebasedatabase.app",
 };
 
-// Khoi tao
 const app = initializeApp(firebaseConfig);
 
 // Auth
@@ -89,14 +88,17 @@ export {
   orderBy,
   serverTimestamp,
 
-  // realtime db
+  // rtdb
   rtdb,
+  getDatabase,
   ref,
+  push,
   get,
   set,
   update,
-  push,
+  child,
   onValue,
   off,
   rtdbServerTimestamp,
+  increment,
 };
