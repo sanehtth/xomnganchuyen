@@ -1,11 +1,6 @@
 // main.js
 // Điểm nối giữa auth (Firebase) và UI (index.html)
-import { initAuth } from "./he-thong/auth.js";
 
-initAuth((user) => {
-  console.log("Auth ready:", user.uid);
-  document.body.classList.remove("loading");
-});
 
 import {
   subscribeAuthState,
@@ -17,7 +12,12 @@ import { renderDashboard } from "./js/ung-dung/ui-dashboard.js";
 import { renderJoinGate } from "./js/ung-dung/ui-join.js";
 import { loadAndRenderAdmin } from "./js/ung-dung/ui-admin.js";
 import { initTheme } from "./js/ung-dung/ui-theme.js";
+import { initAuth } from "./he-thong/auth.js";
 
+initAuth((user) => {
+  console.log("Auth ready:", user.uid);
+  document.body.classList.remove("loading");
+});
 // ============================
 // Lấy element theo đúng id trong index.html
 // ============================
