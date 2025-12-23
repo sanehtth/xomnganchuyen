@@ -94,13 +94,13 @@ subscribeAuthState(async (firebaseUser, profile) => {
 
   // Dashboard luon co
   if (dashboardContent) {
-    renderDashboard(dashboardContent, firebaseUser, profile);
+    renderDashboardView(dashboardContent, firebaseUser, profile);
     showView(viewDashboard);
   }
 
   // Tab Cong thanh vien
   if (joinContent && navJoin) {
-    renderJoinGate(joinContent, firebaseUser, profile);
+    renderJoinGateView(joinContent, firebaseUser, profile);
     navJoin.style.display = "inline-block";
   }
 
