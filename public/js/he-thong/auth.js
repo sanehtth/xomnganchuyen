@@ -12,10 +12,7 @@ import {
 import {
   getUserDocument, // CHỈ ĐỌC
 } from "../data/userData.js";
-
-import {
-  ensureRealtimeUser, // HÀM TẠO USER REALTIME (đã có / hoặc bạn sẽ có)
-} from "../data/statsData.js";
+import { ensureRealtimeUser } from "../data/realtimeUser.js"; // HÀM TẠO USER REALTIME (đã có / hoặc bạn sẽ có)
 
 // Trạng thái auth toàn cục
 export const authState = {
