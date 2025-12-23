@@ -43,9 +43,21 @@ function summarizeTrend(weeklyLast4 = []) {
 
 // Ham chinh: build report hanh vi cho 1 user
 export function buildUserBehaviorReport({ user, weeklyLast4 = [] }) {
-  const metrics = user.metrics || {};
-  const traits = user.traits || {};
-  const timeMetrics = user.timeMetrics || {};
+  const metrics = user.S_behavior ? { fi: user.S_behavior.S_FI, pi: user.S_behavior.S_PI, piStar: user.S_behavior.S_PIStar } : (user.metrics || {});
+  const traits = user.S_traits ? {
+    competitiveness: user.S_traits.S_competitiveness,
+    creativity: user.S_traits.S_creativity,
+    perfectionism: user.S_traits.S_perfectionism,
+    playfulness: user.S_traits.S_playfulness,
+    selfImprovement: user.S_traits.S_selfImprovement,
+    sociability: user.S_traits.S_sociability,
+  } : (user.traits || {});
+  const timeMetrics = user.S_time ? {
+    ttfImpactDays: user.S_time.S_ttfImpactDays,
+    gvPiStar: user.S_time.S_gvPiStar,
+    consistencyScore: user.S_time.S_consistencyScore,
+    flag: user.S_time.S_flag,
+  } : (user.timeMetrics || {});
 
   const fi = metrics.fi ?? 0;
   const pi = metrics.pi ?? 0;
