@@ -1,4 +1,4 @@
-// js/he-thong/firebase.js
+// public/js/he-thong/firebase.js
 // Khoi tao Firebase + Firestore + Realtime Database
 // Chi lam nhiem vu he thong, khong viet logic giao dien o day
 
@@ -25,33 +25,29 @@ import {
   serverTimestamp, // Firestore serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// ✅ Realtime Database imports
 import {
   getDatabase,
   ref,
-  push,
   get,
   set,
   update,
-  child,
-  onValue,
-  off,
-  serverTimestamp as rtdbServerTimestamp, // RTDB serverTimestamp
-  increment,
+  serverTimestamp as rtdbServerTimestamp, // RTDB serverTimestamp (alias de tranh trung ten)
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// =======================
-// Cau hinh Firebase (chi doi doan nay neu doi project)
-// =======================
+// Cau hinh Firebase
+// TODO: neu sau nay ban doi project Firebase thi chi can doi doan nay
 const firebaseConfig = {
   apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
   authDomain: "xomnganchuyen.firebaseapp.com",
   projectId: "xomnganchuyen",
-  storageBucket: "xomnganchuyen.appspot.com",
-  messagingSenderId: "639809447264",
-  appId: "1:639809447264:web:7d32f39e4b86c9bd4a6f4c",
-  databaseURL: "https://xomnganchuyen-default-rtdb.asia-southeast1.firebasedatabase.app",
+  storageBucket: "xomnganchuyen.firebasestorage.app",
+  messagingSenderId: "335661705640",
+  appId: "1:335661705640:web:8bde062fae1fcb3c99559d",
+  measurementId: "G-21JSZ5G1EX",
 };
 
+// Khoi tao
 const app = initializeApp(firebaseConfig);
 
 // Auth
@@ -61,7 +57,7 @@ const googleProvider = new GoogleAuthProvider();
 // Firestore
 const db = getFirestore(app);
 
-// Realtime Database
+// ✅ Realtime Database
 const rtdb = getDatabase(app);
 
 // Export nhung gi can cho cac file khac
@@ -88,17 +84,11 @@ export {
   orderBy,
   serverTimestamp,
 
-  // rtdb
+  // realtime
   rtdb,
-  getDatabase,
   ref,
-  push,
   get,
   set,
   update,
-  child,
-  onValue,
-  off,
   rtdbServerTimestamp,
-  increment,
 };
