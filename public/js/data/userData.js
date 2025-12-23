@@ -62,13 +62,6 @@ const DEFAULT_PROFILE = {
   coin: 0,
   level: 1,
 
-  // Snapshot tren Firestore (prefix S_ de tranh nham voi RTDB)
-  S_metrics: {
-    S_xp: 0,
-    S_coin: 0,
-    S_level: 1,
-  },
-
   joinCode: "",
   refCode: "",
 
@@ -82,28 +75,11 @@ const DEFAULT_PROFILE = {
     sociability: 0,
   },
 
-  // Snapshot tren Firestore (prefix S_)
-  S_traits: {
-    S_competitiveness: 0,
-    S_creativity: 0,
-    S_perfectionism: 0,
-    S_playfulness: 0,
-    S_selfImprovement: 0,
-    S_sociability: 0,
-  },
-
   // 3 chi so FI / PI / PI*
   metrics: {
     fi: 0,
     pi: 0,
     piStar: 0,
-  },
-
-  // Snapshot tren Firestore (prefix S_)
-  S_behavior: {
-    S_FI: 0,
-    S_PI: 0,
-    S_PIStar: 0,
   },
 
   // Chi so thoi gian (admin-only)
@@ -116,14 +92,6 @@ const DEFAULT_PROFILE = {
     consistencyScore: null,
     // label tong quat: FAST_START | STEADY | PLATEAU | DECLINING | RISK | NONE
     flag: "NONE",
-  },
-
-  // Snapshot tren Firestore (prefix S_)
-  S_time: {
-    S_ttfImpactDays: null,
-    S_gvPiStar: null,
-    S_consistencyScore: null,
-    S_flag: "NONE",
   },
 
   // Counters cong hien (de giai thich vi sao co PI* / FI)
@@ -188,53 +156,23 @@ export async function ensureUserDocument(firebaseUser) {
   const uid = firebaseUser.uid;
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
-   // ======Nếu email thuộc admin list -> luôn admin + approved
-    const isAdminEmail = ADMIN_EMAILS.includes(firebaseUser.email || "");
-    let patched = { ...data };
 
-    if (isAdminEmail) {
-      patched.role = "admin";
-      patched.status = "approved";
-    }
+  const isAdminEmail = ADMIN_EMAILS.includes(firebaseUser.email || "");
 
-    await updateDoc(userRef, {
-      ...patched,
-      lastActiveAt: serverTimestamp(),
-    });
-
-    return {
-      uid,
-      ...DEFAULT_PROFILE,
-      ...patched,
-    };
-  
-// ====== CHƯA CÓ PROFILE -> TẠO MỚI ======
-    const baseProfile = {
-    ...DEFAULT_PROFILE,
-    uid,
-    id: generateXncId(),
-    email: firebaseUser.email || "",
-    displayName: firebaseUser.displayName || firebaseUser.email || "User",
-    photoUrl: firebaseUser.photoURL || "",
-    createdAt: serverTimestamp(),
-    lastActiveAt: serverTimestamp(),
-  };
-
-  if (isAdminEmail) {
-    baseProfile.role = "admin";
-    baseProfile.status = "approved";
-  }
-
-  await setDoc(userRef, baseProfile);
-  return baseProfile;
-
-//====== het phan xet email admin====
+  // ====== CHƯA CÓ PROFILE -> TẠO MỚI ======
   if (!snap.exists()) {
     const baseProfile = buildBaseProfile(firebaseUser);
+
+    if (isAdminEmail) {
+      baseProfile.role = "admin";
+      baseProfile.status = "approved";
+    }
+
     await setDoc(userRef, baseProfile);
     return baseProfile;
   }
 
+  // ====== ĐÃ CÓ PROFILE -> MERGE + PATCH THIẾU ======
   const current = snap.data() || {};
 
   const merged = {
@@ -247,50 +185,26 @@ export async function ensureUserDocument(firebaseUser) {
     photoUrl: firebaseUser.photoURL || current.photoUrl || "",
   };
 
-  // ====== Backfill snapshot S_* neu DB cu chua co (giu tuong thich) ======
-  if (!current.S_metrics) {
-    merged.S_metrics = {
-      S_xp: merged.xp ?? 0,
-      S_coin: merged.coin ?? 0,
-      S_level: merged.level ?? 1,
-    };
-  }
-  if (!current.S_traits) {
-    merged.S_traits = {
-      S_competitiveness: merged.traits?.competitiveness ?? 0,
-      S_creativity: merged.traits?.creativity ?? 0,
-      S_perfectionism: merged.traits?.perfectionism ?? 0,
-      S_playfulness: merged.traits?.playfulness ?? 0,
-      S_selfImprovement: merged.traits?.selfImprovement ?? 0,
-      S_sociability: merged.traits?.sociability ?? 0,
-    };
-  }
-  if (!current.S_behavior) {
-    merged.S_behavior = {
-      S_FI: merged.metrics?.fi ?? 0,
-      S_PI: merged.metrics?.pi ?? 0,
-      S_PIStar: merged.metrics?.piStar ?? 0,
-    };
-  }
-  if (!current.S_time) {
-    merged.S_time = {
-      S_ttfImpactDays: merged.timeMetrics?.ttfImpactDays ?? null,
-      S_gvPiStar: merged.timeMetrics?.gvPiStar ?? null,
-      S_consistencyScore: merged.timeMetrics?.consistencyScore ?? null,
-      S_flag: merged.timeMetrics?.flag ?? "NONE",
-    };
-  }
-
-
-  await updateDoc(userRef, {
+  // Patch cac field quan trong neu thieu
+  const patch = {
     lastActiveAt: serverTimestamp(),
-    S_metrics: merged.S_metrics,
-    S_traits: merged.S_traits,
-    S_behavior: merged.S_behavior,
-    S_time: merged.S_time,
-  });
+  };
 
-  return merged;
+  if (!merged.id) patch.id = generateXncId();
+  if (!merged.refCode) patch.refCode = generateRefCode(uid || merged.email);
+
+  if (isAdminEmail) {
+    patch.role = "admin";
+    patch.status = "approved";
+  }
+
+  // Chi update neu co thay doi ngoai lastActiveAt
+  await updateDoc(userRef, patch);
+
+  return {
+    ...merged,
+    ...patch,
+  };
 }
 
 // =======================
