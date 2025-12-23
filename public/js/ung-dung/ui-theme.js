@@ -22,6 +22,11 @@ export function initThemeToggle(themeToggleButton) {
   initTheme(themeToggleButton);
 }
 
+// Alias de tranh loi import (neu file cu dang import initThemeUI)
+export function initThemeUI(themeToggleButton) {
+  initTheme(themeToggleButton);
+}
+
 function applyTheme(theme, btn) {
   document.body.setAttribute("data-theme", theme);
   if (btn) {
@@ -29,6 +34,3 @@ function applyTheme(theme, btn) {
   }
   localStorage.setItem(STORAGE_KEY, theme);
 }
-
-// Backward-compat: mot so phien ban cu cua main.js dung ten export nay.
-export const initThemeUI = initTheme;

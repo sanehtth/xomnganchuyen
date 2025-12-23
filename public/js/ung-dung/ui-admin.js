@@ -5,7 +5,6 @@ import {
   fetchAllUsers,
   approveUser,
   setUserRole,
-  ensureJoinCodes,
 } from "../data/membershipData.js";
 import { getUiAccountStatus } from "../data/userData.js";
 
@@ -67,10 +66,6 @@ export async function loadAndRenderAdmin(container, firebaseUser, profile, onPro
         <button id="admin-approve-selected" class="btn btn-primary">
           Duyet (approve) nhung user da check
         </button>
-
-        <button id="admin-generate-joincode" class="btn btn-secondary" style="margin-left:8px;">
-          Tao JoinCode cho user da check
-        </button>
       </div>
 
       <div style="overflow-x:auto;">
@@ -105,13 +100,6 @@ export async function loadAndRenderAdmin(container, firebaseUser, profile, onPro
   const filterStatus = document.getElementById("admin-filter-status");
   const checkAll = document.getElementById("admin-check-all");
   const approveSelectedBtn = document.getElementById("admin-approve-selected");
-  const genJoinBtn = document.getElementById("admin-generate-joincode");
-
-  function getSelectedUids() {
-    const checkedRows = Array.from(document.querySelectorAll(".admin-row-check:checked"));
-    return checkedRows.map((cb) => cb.closest("tr")?.dataset?.uid).filter(Boolean);
-  }
-
 
   let allUsers = [];
 
@@ -145,16 +133,8 @@ export async function loadAndRenderAdmin(container, firebaseUser, profile, onPro
 
     tbody.innerHTML = filtered
       .map((u) => {
-        const traits = u.S_traits ? {
-          competitiveness: u.S_traits.S_competitiveness,
-          creativity: u.S_traits.S_creativity,
-          perfectionism: u.S_traits.S_perfectionism,
-          playfulness: u.S_traits.S_playfulness,
-          selfImprovement: u.S_traits.S_selfImprovement,
-          sociability: u.S_traits.S_sociability,
-        } : (u.traits || {});
-        const metrics = u.S_behavior ? { fi: u.S_behavior.S_FI, pi: u.S_behavior.S_PI, piStar: u.S_behavior.S_PIStar } : (u.metrics || {});
-        const pub = u.S_metrics ? { xp: u.S_metrics.S_xp, coin: u.S_metrics.S_coin, level: u.S_metrics.S_level } : { xp: (u.xp ?? 0), coin: (u.coin ?? 0), level: (u.level ?? 1) };
+        const traits = u.traits || {};
+        const metrics = u.metrics || {};
         const statusUi = getUiAccountStatus(u);
 
         return `
@@ -164,12 +144,12 @@ export async function loadAndRenderAdmin(container, firebaseUser, profile, onPro
             <td>${u.displayName || ""}</td>
             <td>${u.role || "guest"}</td>
             <td>${u.status || "none"} (${statusUi})</td>
-            <td>${pub.xp ?? 0}</td>
-            <td>${pub.coin ?? 0}</td>
-            <td>${pub.level ?? 1}</td>
+            <td>${u.xp ?? 0}</td>
+            <td>${u.coin ?? 0}</td>
+            <td>${u.level ?? 1}</td>
             <td>${metrics.fi ?? 0}</td>
             <td>${metrics.pi ?? 0}</td>
-            <td>${metrics.piStartartar ?? 0}</td>
+            <td>${metrics.piStar ?? 0}</td>
             <td>${u.joinCode || ""}</td>
             <td>
               <select class="admin-role-select">
@@ -202,36 +182,7 @@ export async function loadAndRenderAdmin(container, firebaseUser, profile, onPro
   });
 
   // --- Duyet hang loat ---
-  
-
-// Tao JoinCode cho cac user da chon (chi user thieu joinCode)
-genJoinBtn.addEventListener("click", async () => {
-  const selectedUids = getSelectedUids();
-  if (!selectedUids.length) {
-    alert("Ban chua chon user nao.");
-    return;
-  }
-
-  genJoinBtn.disabled = true;
-  try {
-    const updated = await ensureJoinCodes(selectedUids);
-    if (!updated.length) {
-      alert("Khong co user nao thieu JoinCode.");
-    } else {
-      alert(`Da tao JoinCode cho ${updated.length} user.`);
-    }
-    // reload
-    allUsers = await fetchAllUsers();
-    renderTable();
-  } catch (e) {
-    console.error(e);
-    alert("Co loi xay ra khi tao JoinCode.");
-  } finally {
-    genJoinBtn.disabled = false;
-  }
-});
-
-approveSelectedBtn.addEventListener("click", async () => {
+  approveSelectedBtn.addEventListener("click", async () => {
     const checkedRows = Array.from(
       document.querySelectorAll(".admin-row-check:checked")
     );
@@ -336,4 +287,9 @@ approveSelectedBtn.addEventListener("click", async () => {
       alert("Khong thay doi duoc role.");
     }
   });
+}
+
+// Backward-compatible export (mot so file cu import renderAdminView)
+export async function renderAdminView(container, firebaseUser, profile, onProfileUpdate) {
+  return loadAndRenderAdmin(container, firebaseUser, profile, onProfileUpdate);
 }

@@ -148,3 +148,8 @@ export function renderJoinGate(
     }
   });
 }
+
+// Alias de tranh loi import (neu ban cu import renderJoinView)
+export function renderJoinView(container, firebaseUser, profile, onProfileUpdate) {
+  return renderJoinGate(container, firebaseUser, profile, onProfileUpdate);
+}

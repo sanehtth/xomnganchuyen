@@ -10,16 +10,8 @@ import { getUiAccountStatus } from "../data/userData.js";
  */
 export function renderDashboard(container, firebaseUser, profile) {
   const p = profile || {};
-  const metrics = p.S_behavior ? { fi: p.S_behavior.S_FI, pi: p.S_behavior.S_PI, piStar: p.S_behavior.S_PIStar } : (p.metrics || {});
-  const traits = p.S_traits ? {
-    competitiveness: p.S_traits.S_competitiveness,
-    creativity: p.S_traits.S_creativity,
-    perfectionism: p.S_traits.S_perfectionism,
-    playfulness: p.S_traits.S_playfulness,
-    selfImprovement: p.S_traits.S_selfImprovement,
-    sociability: p.S_traits.S_sociability,
-  } : (p.traits || {});
-  const pub = p.S_metrics ? { xp: p.S_metrics.S_xp, coin: p.S_metrics.S_coin, level: p.S_metrics.S_level } : { xp: (p.xp ?? 0), coin: (p.coin ?? 0), level: (p.level ?? 1) };
+  const metrics = p.metrics || {};
+  const traits = p.traits || {};
 
   const uiStatus = getUiAccountStatus(p); // normal | pending | banned
 
@@ -35,9 +27,9 @@ export function renderDashboard(container, firebaseUser, profile) {
 
         <h5 style="margin-top:20px;">Chỉ số công khai</h5>
         <ul>
-          <li>XP: ${pub.xp || 0}</li>
-          <li>Coin: ${pub.coin || 0}</li>
-          <li>Level: ${pub.level || 1}</li>
+          <li>XP: ${p.xp || 0}</li>
+          <li>Coin: ${p.coin || 0}</li>
+          <li>Level: ${p.level || 1}</li>
         </ul>
 
         <h5>Chỉ số FI / PI / PI*</h5>
@@ -65,4 +57,9 @@ export function renderDashboard(container, firebaseUser, profile) {
       </div>
     </div>
   `;
+}
+
+// Alias de tranh loi import (neu ban cu import renderDashboardView)
+export function renderDashboardView(container, firebaseUser, profile) {
+  return renderDashboard(container, firebaseUser, profile);
 }
