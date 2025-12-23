@@ -10,28 +10,36 @@ import {
 } from "./firebase.js";
 
 import {
-  ensureUserDocument,
-  getUserDocument,
+  getUserDocument, // CHỈ ĐỌC
 } from "../data/userData.js";
 
-// Trạng thái auth toàn cục để các module khác có thể dùng
+import {
+  ensureRealtimeUser, // HÀM TẠO USER REALTIME (đã có / hoặc bạn sẽ có)
+} from "../data/statsData.js";
+
+// Trạng thái auth toàn cục
 export const authState = {
   firebaseUser: null,
-  profile: null,
+  profile: null, // chỉ là Firestore profile (nếu có)
   loading: true,
 };
 
-// Đăng nhập với Google
+// =========================
+// ĐĂNG NHẬP GOOGLE
+// =========================
 export async function loginWithGoogle() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const firebaseUser = result.user;
 
-    // Đảm bảo có hồ sơ trong Firestore
-    const profile = await ensureUserDocument(firebaseUser);
+    // 1️⃣ CHỈ TẠO REALTIME USER (guest)
+    await ensureRealtimeUser(firebaseUser);
+
+    // 2️⃣ CHỈ ĐỌC Firestore (nếu đã là member)
+    const profile = await getUserDocument(firebaseUser.uid);
 
     authState.firebaseUser = firebaseUser;
-    authState.profile = profile;
+    authState.profile = profile; // null nếu chưa được duyệt
     authState.loading = false;
 
     return { firebaseUser, profile };
@@ -41,49 +49,39 @@ export async function loginWithGoogle() {
   }
 }
 
-// Đăng xuất
+// =========================
+// ĐĂNG XUẤT
+// =========================
 export async function logout() {
-  try {
-    await signOut(auth);
-    authState.firebaseUser = null;
-    authState.profile = null;
-    authState.loading = false;
-  } catch (err) {
-    console.error("Lỗi đăng xuất:", err);
-    throw err;
-  }
+  await signOut(auth);
+  authState.firebaseUser = null;
+  authState.profile = null;
+  authState.loading = false;
 }
 
-// Lắng nghe thay đổi auth và load hồ sơ user
+// =========================
+// LẮNG NGHE AUTH
+// =========================
 export function subscribeAuthState(callback) {
   authState.loading = true;
 
   return onAuthStateChanged(auth, async (firebaseUser) => {
-    try {
-      if (!firebaseUser) {
-        authState.firebaseUser = null;
-        authState.profile = null;
-        authState.loading = false;
-        callback(null, null);
-        return;
-      }
-
-      authState.firebaseUser = firebaseUser;
-
-      // Lấy hồ sơ từ Firestore (đã có ensureUserDocument ở lần login đầu)
-      let profile = await getUserDocument(firebaseUser.uid);
-      if (!profile) {
-        profile = await ensureUserDocument(firebaseUser);
-      }
-
-      authState.profile = profile;
+    if (!firebaseUser) {
+      authState.firebaseUser = null;
+      authState.profile = null;
       authState.loading = false;
-
-      callback(firebaseUser, profile);
-    } catch (err) {
-      console.error("Lỗi khi xử lý onAuthStateChanged:", err);
-      authState.loading = false;
-      callback(firebaseUser || null, authState.profile || null);
+      callback(null, null);
+      return;
     }
+
+    authState.firebaseUser = firebaseUser;
+
+    // ❌ TUYỆT ĐỐI KHÔNG ensureUserDocument Ở ĐÂY
+    const profile = await getUserDocument(firebaseUser.uid);
+
+    authState.profile = profile; // null = guest
+    authState.loading = false;
+
+    callback(firebaseUser, profile);
   });
 }
