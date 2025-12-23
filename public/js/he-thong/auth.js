@@ -1,68 +1,79 @@
-// public/js/he-thong/auth.js
-// Auth flow: Google login -> ensure Firestore doc -> ensure RTDB node -> callback
+// js/he-thong/auth.js
+// Quản lý đăng nhập / đăng xuất + trạng thái auth toàn cục
+
 import {
   auth,
   googleProvider,
-  onAuthStateChanged,
   signInWithPopup,
   signOut,
+  onAuthStateChanged,
 } from "./firebase.js";
 
-import { ensureUserDocument } from "../data/userData.js";
-import { ensureRealtimeUser } from "../data/realtimeUser.js";
+import {
+  ensureUserDocument,
+  getUserDocument,
+} from "../data/userData.js";
 
-const authState = {
-  loading: true,
+// Trạng thái auth toàn cục để các module khác có thể dùng
+export const authState = {
   firebaseUser: null,
   profile: null,
-  unsub: null,
+  loading: true,
 };
 
-export function getAuthState() {
-  return { ...authState };
-}
-
+// Đăng nhập với Google
 export async function loginWithGoogle() {
-  const result = await signInWithPopup(auth, googleProvider);
-  return result.user;
+  // Dung Redirect de tranh bi chan popup / mat "user gesture"
+  // (signInWithRedirect se chuyen trang sang Google)
+  await signInWithRedirect(auth, googleProvider);
 }
 
+
+// Đăng xuất
 export async function logout() {
-  await signOut(auth);
+  try {
+    await signOut(auth);
+    authState.firebaseUser = null;
+    authState.profile = null;
+    authState.loading = false;
+  } catch (err) {
+    console.error("Lỗi đăng xuất:", err);
+    throw err;
+  }
 }
 
-// callback(firebaseUser, profile)
+// Lắng nghe thay đổi auth và load hồ sơ user
 export function subscribeAuthState(callback) {
-  if (authState.unsub) authState.unsub();
+  
+  handleRedirectResultOnce();
+authState.loading = true;
 
-  authState.unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-    authState.loading = true;
-    authState.firebaseUser = firebaseUser || null;
-    authState.profile = null;
-
+  return onAuthStateChanged(auth, async (firebaseUser) => {
     try {
       if (!firebaseUser) {
+        authState.firebaseUser = null;
+        authState.profile = null;
         authState.loading = false;
-        if (typeof callback === "function") callback(null, null);
+        callback(null, null);
         return;
       }
 
-      // 1) Firestore: ensure user doc (link key id stored here)
-      const profile = await ensureUserDocument(firebaseUser);
+      authState.firebaseUser = firebaseUser;
 
-      // 2) RTDB: ensure behavior tracking node exists
-      await ensureRealtimeUser(firebaseUser.uid, profile);
+      // Lấy hồ sơ từ Firestore (đã có ensureUserDocument ở lần login đầu)
+      let profile = await getUserDocument(firebaseUser.uid);
+      if (!profile) {
+        profile = await ensureUserDocument(firebaseUser);
+      }
 
       authState.profile = profile;
       authState.loading = false;
 
-      if (typeof callback === "function") callback(firebaseUser, profile);
+      callback(firebaseUser, profile);
     } catch (err) {
       console.error("Lỗi khi xử lý onAuthStateChanged:", err);
       authState.loading = false;
-      if (typeof callback === "function") callback(firebaseUser || null, null);
+      callback(firebaseUser || null, authState.profile || null);
     }
   });
-
-  return authState.unsub;
 }
