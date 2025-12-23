@@ -5,11 +5,14 @@ import {
   db,
   collection,
   getDocs,
+  getDoc,
   query,
   orderBy,
   doc,
   updateDoc,
 } from "../he-thong/firebase.js";
+
+import { generateXncId } from "./userData.js";
 
 // =======================
 // Lay danh sach user cho Admin Panel
@@ -74,27 +77,38 @@ export async function setUserRole(uid, newRole) {
   await updateDoc(userRef, { role: newRole });
 }
 
-// Tạo/bổ sung joinCode cho các user (dùng cho Admin Panel)
-// - uids: mảng uid cần xử lý
-// - force: true -> ghi đè joinCode đã có
-export async function ensureJoinCodes(uids = [], { force = false } = {}) {
-  const result = { updated: 0, skipped: 0, errors: [] };
-  if (!Array.isArray(uids) || uids.length === 0) return result;
+// =======================
+// Admin helper: tao joinCode neu bi thieu
+// - joinCode duoc su dung khi user len member
+// - Neu user da co joinCode: bo qua
+// - Neu chua co joinCode:
+//    + neu da co "id" (XNC...): dung id lam joinCode
+//    + neu chua co id: tao moi id bang generateXncId() va dung luon cho joinCode
+// Tra ve: { updated: number }
+// =======================
+export async function ensureJoinCodes(uids = []) {
+  let updated = 0;
   for (const uid of uids) {
     try {
-      const ref = doc(db, "users", uid);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) { result.skipped++; continue; }
+      const userRef = doc(db, "users", uid);
+      const snap = await getDoc(userRef);
+      if (!snap.exists()) continue;
       const data = snap.data() || {};
-      const current = (data.joinCode || "").trim();
-      if (current && !force) { result.skipped++; continue; }
-      const seed = (data.email || data.displayName || uid);
-      const joinCode = generateRefCode(seed);
-      await updateDoc(ref, { joinCode });
-      result.updated++;
+      const currentJoin = (data.joinCode || "").toString().trim();
+      if (currentJoin) continue;
+
+      const currentId = (data.id || "").toString().trim();
+      const newId = currentId || generateXncId();
+      const patch = {
+        joinCode: newId,
+      };
+      if (!currentId) patch.id = newId;
+      await updateDoc(userRef, patch);
+      updated += 1;
     } catch (e) {
-      result.errors.push({ uid, message: e?.message || String(e) });
+      // bo qua tung user de khong lam fail ca lo
+      console.warn("ensureJoinCodes failed for", uid, e);
     }
   }
-  return result;
+  return { updated };
 }
