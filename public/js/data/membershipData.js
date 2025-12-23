@@ -49,7 +49,7 @@ export async function requestMembership(uid) {
 // action: "approve" | "reject"
 // newRole: "member" | "associate" | "admin" | "guest" ...
 // =======================
- truc tiep (neu can)
+// truc tiep (neu can)
 // =======================
 export async function setUserRole(uid, newRole) {
   const userRef = doc(db, "users", uid);
