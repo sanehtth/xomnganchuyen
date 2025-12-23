@@ -29,3 +29,6 @@ function applyTheme(theme, btn) {
   }
   localStorage.setItem(STORAGE_KEY, theme);
 }
+
+// Backward-compat: mot so phien ban cu cua main.js dung ten export nay.
+export const initThemeUI = initTheme;
