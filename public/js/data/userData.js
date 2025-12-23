@@ -123,7 +123,7 @@ const DEFAULT_PROFILE = {
     S_ttfImpactDays: null,
     S_gvPiStar: null,
     S_consistencyScore: null,
-    S_flag: \"NONE\",
+    S_flag: "NONE",
   },
 
   // Counters cong hien (de giai thich vi sao co PI* / FI)
