@@ -1,10 +1,12 @@
-﻿// functions/index.js
-// Cloud Functions cho Realtime Database
+// functions/index.js
+// Cloud Functions cho Realtime Database (submissions)
+// - Trigger khi co submission moi (RTDB)
+// - Tinh score
+// - Cap nhat Firestore users/{uid}.metrics (khong cap nhat RTDB /users nua)
 
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
-// Khoi tao admin SDK 1 lan
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -12,10 +14,11 @@ if (!admin.apps.length) {
 // =============== Helpers ===============
 
 function clamp01(x) {
-  if (Number.isNaN(x)) return 0;
-  if (x < 0) return 0;
-  if (x > 1) return 1;
-  return x;
+  const n = Number(x);
+  if (Number.isNaN(n)) return 0;
+  if (n < 0) return 0;
+  if (n > 1) return 1;
+  return n;
 }
 
 // ctx: { user, submission }
@@ -36,7 +39,7 @@ function computeScores(ctx) {
   const ruleRisk =
     typeof sub.meta?.ruleRisk === "number" ? clamp01(sub.meta.ruleRisk) : 0;
 
-  const value = clamp01((quality * 0.6 + novelty * 0.4));
+  const value = clamp01(quality * 0.6 + novelty * 0.4);
   const behavior = clamp01(1 - ruleRisk);
   const risk = clamp01(ruleRisk);
 
@@ -62,6 +65,7 @@ exports.onSubmissionCreated = functions.database
   .onCreate(async (snap, ctx) => {
     const sid = ctx.params.sid;
     const sub = snap.val();
+
     if (!sub || !sub.uid) {
       console.log("submission missing uid, skip", { sid });
       return null;
@@ -69,36 +73,41 @@ exports.onSubmissionCreated = functions.database
 
     const uid = sub.uid;
 
-    // Lay user tu RTDB
-    const userRef = admin.database().ref(`/users/${uid}`);
-    const userSnap = await userRef.once("value");
-    const user = userSnap.val() || {};
+    // ===== 1) Lay user tu Firestore =====
+    const userRef = admin.firestore().collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    const user = userSnap.exists ? userSnap.data() : {};
 
+    // ===== 2) Tinh score =====
     const score = computeScores({ user, submission: sub });
 
-    // Cap nhat lai metrics trong user
+    // ===== 3) Cap nhat metrics trong Firestore =====
+    const currentMetrics = user && user.metrics ? user.metrics : {};
     const newMetrics = {
-      ...(user.metrics || {}),
+      ...currentMetrics,
       piStar: score.finalPiStar,
       fi: score.finalFi,
     };
 
-    await userRef.update({
-      metrics: newMetrics,
-      contributionStats: {
-        ...(user.contributionStats || {}),
-        lastContributionAt: admin.database.ServerValue.TIMESTAMP,
+    await userRef.set(
+      {
+        metrics: newMetrics,
+        contributionStats: {
+          ...(user.contributionStats || {}),
+          lastContributionAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
       },
-    });
+      { merge: true }
+    );
 
-    // Cap nhat lai submission
+    // ===== 4) Cap nhat submission trong RTDB =====
     const subRef = admin.database().ref(`/submissions/${sid}`);
     await subRef.update({
       score,
       status: "scored",
     });
 
-    // Day vao queue cho Admin (de lam report / vinh danh)
+    // ===== 5) Day vao queue cho Admin (RTDB) =====
     const queueRef = admin.database().ref("/adminQueues/submissions").push();
     await queueRef.set({
       sid,
