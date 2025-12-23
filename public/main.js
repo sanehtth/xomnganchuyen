@@ -100,7 +100,7 @@ subscribeAuthState(async (firebaseUser, profile) => {
 
   // Tab Cong thanh vien
   if (joinContent && navJoin) {
-    renderJoinGateView(joinContent, firebaseUser, profile);
+    renderJoinView(joinContent, firebaseUser, profile);
     navJoin.style.display = "inline-block";
   }
 
