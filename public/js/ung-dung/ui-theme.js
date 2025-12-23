@@ -1,5 +1,5 @@
 // public/js/ung-dung/ui-theme.js
-export function initThemeUI() {
+export function initTheme() {
   const btn = document.getElementById("theme-toggle-btn");
   const label = document.getElementById("theme-label");
   if (!btn) return;
