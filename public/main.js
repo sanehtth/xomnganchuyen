@@ -10,7 +10,7 @@ import {
 import { renderDashboard } from "./js/ung-dung/ui-dashboard.js";
 import { renderJoinGate } from "./js/ung-dung/ui-join.js";
 import { loadAndRenderAdmin } from "./js/ung-dung/ui-admin.js";
-import { initTheme } from "./js/ung-dung/ui-theme.js";
+import { initThemeUI } from "./js/ung-dung/ui-theme.js";
 
 // =====================================
 // DOM elements
@@ -34,7 +34,7 @@ const navAdmin = document.getElementById("nav-admin");
 
 // Theme toggle
 const themeToggleBtn = document.getElementById("theme-toggle-btn");
-initTheme(themeToggleBtn);
+initThemeUI(themeToggleBtn);
 
 // Trang landing khi chua dang nhap
 function renderLoggedOutLanding() {
