@@ -73,3 +73,28 @@ export async function setUserRole(uid, newRole) {
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, { role: newRole });
 }
+
+// Tạo/bổ sung joinCode cho các user (dùng cho Admin Panel)
+// - uids: mảng uid cần xử lý
+// - force: true -> ghi đè joinCode đã có
+export async function ensureJoinCodes(uids = [], { force = false } = {}) {
+  const result = { updated: 0, skipped: 0, errors: [] };
+  if (!Array.isArray(uids) || uids.length === 0) return result;
+  for (const uid of uids) {
+    try {
+      const ref = doc(db, "users", uid);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) { result.skipped++; continue; }
+      const data = snap.data() || {};
+      const current = (data.joinCode || "").trim();
+      if (current && !force) { result.skipped++; continue; }
+      const seed = (data.email || data.displayName || uid);
+      const joinCode = generateRefCode(seed);
+      await updateDoc(ref, { joinCode });
+      result.updated++;
+    } catch (e) {
+      result.errors.push({ uid, message: e?.message || String(e) });
+    }
+  }
+  return result;
+}
