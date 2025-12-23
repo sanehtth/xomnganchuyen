@@ -58,8 +58,3 @@ export function renderDashboard(container, firebaseUser, profile) {
     </div>
   `;
 }
-
-// Alias de tranh loi import (neu ban cu import renderDashboardView)
-export function renderDashboardView(container, firebaseUser, profile) {
-  return renderDashboard(container, firebaseUser, profile);
-}

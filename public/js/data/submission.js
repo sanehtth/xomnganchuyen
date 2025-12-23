@@ -1,7 +1,7 @@
 // public/js/data/submission.js
 // Cac ham ho tro fan nop bai (submissions) len Realtime Database
 
-import { rtdb, ref, push, rtdbServerTimestamp } from "../he-thong/firebase.js";
+import { db, ref, push, serverTimestamp } from "../he-thong/firebase.js";
 
 // payload: { type, content, attachments, source, meta }
 export async function submitFanSubmission(uid, payload = {}) {
@@ -9,7 +9,7 @@ export async function submitFanSubmission(uid, payload = {}) {
     throw new Error("submitFanSubmission: thieu uid");
   }
 
-  const submissionsRef = ref(rtdb, "submissions");
+  const submissionsRef = ref(db, "submissions");
 
   const data = {
     uid,
@@ -18,7 +18,7 @@ export async function submitFanSubmission(uid, payload = {}) {
     attachments: Array.isArray(payload.attachments)
       ? payload.attachments
       : [],
-    createdAt: rtdbServerTimestamp(),
+    createdAt: serverTimestamp(),
     status: "pending_review", // cho cloud function + admin xu ly
     source: payload.source || "web",
     meta: payload.meta || {},

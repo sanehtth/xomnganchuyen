@@ -1,114 +1,91 @@
-// js/data/membershipData.js
-// Cac chuc nang lien quan toi membership (yeu cau member, duyet user, set role)
+// public/js/data/membershipData.js
+// Xu ly nang cap membership (member/guest) va joinCode (Firestore)
 
 import {
   db,
-  collection,
-  getDocs,
-  getDoc,
-  query,
-  orderBy,
   doc,
+  getDoc,
   updateDoc,
+  writeBatch,
+  serverTimestamp,
 } from "../he-thong/firebase.js";
 
-import { generateXncId } from "./userData.js";
+import { generateRefCode } from "./userData.js";
 
-// =======================
-// Lay danh sach user cho Admin Panel
-// =======================
-export async function fetchAllUsers() {
-  const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
+export async function setJoinCode(uid, joinCode) {
+  if (!uid) throw new Error("uid is required");
+  const code = String(joinCode || "").trim();
+  if (!code) throw new Error("joinCode is required");
 
-  const list = [];
-  snap.forEach((d) => {
-    list.push({
-      uid: d.id,
-      ...d.data(),
-    });
-  });
-
-  return list;
-}
-
-// =======================
-// UI gui yeu cau tro thanh member
-// status trong DB: none | pending | approved | rejected | banned
-// UI se map lai thanh normal / pending / banned
-// =======================
-export async function requestMembership(uid) {
-  const userRef = doc(db, "users", uid);
-  await updateDoc(userRef, {
-    status: "pending",
+  const ref = doc(db, "users", uid);
+  await updateDoc(ref, {
+    joinCode: code,
+    updatedAt: serverTimestamp(),
   });
 }
 
-// =======================
-// Admin duyet / tu choi membership
-// action: "approve" | "reject"
-// newRole: "member" | "associate" | "admin" | "guest" ...
-// =======================
-export async function approveUser(uid, action, newRole) {
+/**
+ * Admin: duyet user => set role/status + tao joinCode neu chua co.
+ *
+ * - Neu user duoc set role = 'member' ma chua co joinCode => tao joinCode (format: XNC + 4 so).
+ * - Luon luu id (ma 16 ky tu tu generateXncId) neu chua co.
+ */
+export async function approveUser(uid, updates = {}) {
+  if (!uid) throw new Error("uid is required");
+
   const userRef = doc(db, "users", uid);
+  const snap = await getDoc(userRef);
+  const data = snap.exists() ? snap.data() : {};
 
-  if (action === "approve") {
-    const patch = {
-      status: "approved",
-    };
+  const next = { ...updates };
 
-    if (newRole) {
-      patch.role = newRole;
+  // Tao joinCode neu can
+  const nextRole = (next.role ?? data.role ?? "guest").toLowerCase();
+  if (nextRole === "member") {
+    const existing = String(next.joinCode ?? data.joinCode ?? "").trim();
+    if (!existing) {
+      next.joinCode = generateRefCode("XNC");
     }
-
-    await updateDoc(userRef, patch);
-  } else if (action === "reject") {
-    await updateDoc(userRef, {
-      status: "rejected",
-    });
   }
+
+  // Meta
+  if (!data.createdAt) next.createdAt = serverTimestamp();
+  next.updatedAt = serverTimestamp();
+
+  await updateDoc(userRef, next);
 }
 
-// =======================
-// Admin set role truc tiep (neu can)
-// =======================
-export async function setUserRole(uid, newRole) {
-  const userRef = doc(db, "users", uid);
-  await updateDoc(userRef, { role: newRole });
-}
-
-// =======================
-// Admin helper: tao joinCode neu bi thieu
-// - joinCode duoc su dung khi user len member
-// - Neu user da co joinCode: bo qua
-// - Neu chua co joinCode:
-//    + neu da co "id" (XNC...): dung id lam joinCode
-//    + neu chua co id: tao moi id bang generateXncId() va dung luon cho joinCode
-// Tra ve: { updated: number }
-// =======================
+/**
+ * Admin: Dam bao danh sach user co joinCode (chi voi role member).
+ * Dung khi admin bam nut "Duyet (approve) nhung user da check".
+ */
 export async function ensureJoinCodes(uids = []) {
-  let updated = 0;
-  for (const uid of uids) {
-    try {
-      const userRef = doc(db, "users", uid);
-      const snap = await getDoc(userRef);
-      if (!snap.exists()) continue;
-      const data = snap.data() || {};
-      const currentJoin = (data.joinCode || "").toString().trim();
-      if (currentJoin) continue;
+  const list = Array.isArray(uids) ? uids.filter(Boolean) : [];
+  if (list.length === 0) return { updated: 0 };
 
-      const currentId = (data.id || "").toString().trim();
-      const newId = currentId || generateXncId();
-      const patch = {
-        joinCode: newId,
-      };
-      if (!currentId) patch.id = newId;
-      await updateDoc(userRef, patch);
-      updated += 1;
-    } catch (e) {
-      // bo qua tung user de khong lam fail ca lo
-      console.warn("ensureJoinCodes failed for", uid, e);
-    }
+  const batch = writeBatch(db);
+  let updated = 0;
+
+  for (const uid of list) {
+    const ref = doc(db, "users", uid);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) continue;
+    const u = snap.data() || {};
+    const role = String(u.role || "guest").toLowerCase();
+    if (role !== "member") continue;
+    const jc = String(u.joinCode || "").trim();
+    if (jc) continue;
+
+    batch.update(ref, {
+      joinCode: generateRefCode("XNC"),
+      updatedAt: serverTimestamp(),
+    });
+    updated++;
   }
+
+  if (updated > 0) {
+    await batch.commit();
+  }
+
   return { updated };
 }

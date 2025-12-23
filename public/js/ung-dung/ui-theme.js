@@ -22,11 +22,6 @@ export function initThemeToggle(themeToggleButton) {
   initTheme(themeToggleButton);
 }
 
-// Alias de tranh loi import (neu file cu dang import initThemeUI)
-export function initThemeUI(themeToggleButton) {
-  initTheme(themeToggleButton);
-}
-
 function applyTheme(theme, btn) {
   document.body.setAttribute("data-theme", theme);
   if (btn) {

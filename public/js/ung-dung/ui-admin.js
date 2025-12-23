@@ -288,8 +288,3 @@ export async function loadAndRenderAdmin(container, firebaseUser, profile, onPro
     }
   });
 }
-
-// Backward-compatible export (mot so file cu import renderAdminView)
-export async function renderAdminView(container, firebaseUser, profile, onProfileUpdate) {
-  return loadAndRenderAdmin(container, firebaseUser, profile, onProfileUpdate);
-}

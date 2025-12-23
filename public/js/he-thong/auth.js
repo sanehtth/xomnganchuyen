@@ -1,98 +1,65 @@
-// js/he-thong/auth.js
-// Quản lý đăng nhập / đăng xuất + trạng thái auth toàn cục
+// public/js/he-thong/auth.js
+// Quan ly dang nhap/thoat va theo doi auth state
 
 import {
   auth,
   googleProvider,
+  onAuthStateChanged,
   signInWithPopup,
   signOut,
-  onAuthStateChanged,
 } from "./firebase.js";
 
-import {
-  ensureUserDocument,
-  getUserDocument,
-} from "../data/userData.js";
+import { ensureUserDocument } from "../data/userData.js";
+import { ensureRealtimeUser } from "../data/realtimeUser.js";
 
-// Trạng thái auth toàn cục để các module khác có thể dùng
-export const authState = {
-  firebaseUser: null,
-  profile: null,
-  loading: true,
-};
-
-// Đăng nhập với Google
+/**
+ * Dang nhap bang Google.
+ */
 export async function loginWithGoogle() {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const firebaseUser = result.user;
-
-    // Đảm bảo có hồ sơ trong Firestore
-    const profile = await ensureUserDocument(firebaseUser);
-
-    authState.firebaseUser = firebaseUser;
-    authState.profile = profile;
-    authState.loading = false;
-
-    return { firebaseUser, profile };
-  } catch (err) {
-    console.error("Lỗi đăng nhập:", err);
-    throw err;
-  }
+  await signInWithPopup(auth, googleProvider);
 }
 
-// Đăng xuất
+/**
+ * Dang xuat.
+ */
 export async function logout() {
-  try {
-    await signOut(auth);
-    authState.firebaseUser = null;
-    authState.profile = null;
-    authState.loading = false;
-  } catch (err) {
-    console.error("Lỗi đăng xuất:", err);
-    throw err;
-  }
+  await signOut(auth);
 }
 
-// Lắng nghe thay đổi auth và load hồ sơ user
+/**
+ * Subscribe auth state.
+ * callback(firebaseUser, profile)
+ */
 export function subscribeAuthState(callback) {
-  // Một số file cũ có thể gọi subscribeAuthState()/initAuth() mà không truyền callback.
-  // Tránh crash "callback is not a function".
-  if (typeof callback !== "function") callback = () => {};
-
-  authState.loading = true;
+  const cb = typeof callback === "function" ? callback : () => {};
 
   return onAuthStateChanged(auth, async (firebaseUser) => {
     try {
       if (!firebaseUser) {
-        authState.firebaseUser = null;
-        authState.profile = null;
-        authState.loading = false;
-        callback(null, null);
+        cb(null, null);
         return;
       }
 
-      authState.firebaseUser = firebaseUser;
+      // 1) Dam bao Firestore user document ton tai
+      const profile = await ensureUserDocument(firebaseUser.uid, {
+        email: firebaseUser.email || "",
+        displayName: firebaseUser.displayName || "",
+        photoURL: firebaseUser.photoURL || "",
+      });
 
-      // Lấy hồ sơ từ Firestore (đã có ensureUserDocument ở lần login đầu)
-      let profile = await getUserDocument(firebaseUser.uid);
-      if (!profile) {
-        profile = await ensureUserDocument(firebaseUser);
-      }
+      // 2) Dam bao Realtime user record ton tai (chi tracking hanh vi)
+      // Neu RTDB rules/region co van de thi ham nay se fail im lang (console.warn)
+      await ensureRealtimeUser(firebaseUser.uid, profile);
 
-      authState.profile = profile;
-      authState.loading = false;
-
-      callback(firebaseUser, profile);
+      cb(firebaseUser, profile);
     } catch (err) {
-      console.error("Lỗi khi xử lý onAuthStateChanged:", err);
-      authState.loading = false;
-      callback(firebaseUser || null, authState.profile || null);
+      console.error("Loi khi xu ly onAuthStateChanged:", err);
+      cb(firebaseUser || null, null);
     }
   });
 }
 
-// Backward-compatible alias: các file cũ dùng initAuth(callback)
+// Backward compatible alias (neu file cu import initAuth)
 export function initAuth(callback) {
   return subscribeAuthState(callback);
 }

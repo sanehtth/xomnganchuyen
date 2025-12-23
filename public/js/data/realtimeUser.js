@@ -1,60 +1,75 @@
-﻿// js/data/realtimeUser.js
-// Realtime chỉ dùng cho guest + tracking hành vi
+// public/js/data/realtimeUser.js
+// Realtime DB chi dung de tracking hanh vi (khong can joinCode/xp/coin)
 
-import { rtdb, ref, get, set, update } from "../he-thong/firebase.js";
-import { generateXncId } from "./userData.js"; // bạn đã có sẵn hàm này
+import { rtdb, rtdbRef, rtdbGet, rtdbSet, rtdbUpdate, rtdbServerTimestamp } from "../he-thong/firebase.js";
 
-export async function ensureRealtimeUser(firebaseUser) {
-  const uid = firebaseUser.uid;
-  const userRef = ref(rtdb, `users/${uid}`);
+const DEFAULT_BEHAVIOR = {
+  // 6 chi so hanh vi (ban co the doi ten sau)
+  b1: 0,
+  b2: 0,
+  b3: 0,
+  b4: 0,
+  b5: 0,
+  b6: 0,
+};
 
-  const snap = await get(userRef);
-  const now = Date.now();
+const DEFAULT_METRICS = {
+  fi: 0,
+  pi: 0,
+  piStar: 0,
+};
 
-  if (snap.exists()) {
-    // chỉ update lastActiveAt
-    await update(userRef, { lastActiveAt: now });
-    return snap.val();
+const DEFAULT_TIME = {
+  t1: 0,
+  t2: 0,
+  t3: 0,
+  t4: 0,
+};
+
+/**
+ * Dam bao user co node trong Realtime DB.
+ * Path: users/{uid}
+ */
+export async function ensureRealtimeUser(uid, profile = null) {
+  if (!uid) return null;
+
+  // Workaround: chi de su dung rtdb va tranh tree-shaking
+  void rtdb;
+
+  const nodeRef = rtdbRef(rtdb, `users/${uid}`);
+  const snap = await rtdbGet(nodeRef);
+
+  if (!snap.exists()) {
+    const payload = {
+      uid,
+      id: uid, // lien ket voi Firestore (id = uid)
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      lastActiveAt: Date.now(),
+      lastActiveAtServer: rtdbServerTimestamp(),
+      behavior: { ...DEFAULT_BEHAVIOR },
+      metrics: { ...DEFAULT_METRICS },
+      time: { ...DEFAULT_TIME },
+    };
+
+    // Luu them 1 vai thong tin co ban de debug (optional)
+    if (profile?.email) payload.email = profile.email;
+    if (profile?.displayName) payload.displayName = profile.displayName;
+
+    await rtdbSet(nodeRef, payload);
+    return payload;
   }
 
-  // Chưa có -> tạo mới guest realtime
-  const rtId = generateXncId(); // ID 16 ký tự kiểu XNC...
+  // Cap nhat lastActive
+  try {
+    await rtdbUpdate(nodeRef, {
+      lastActiveAt: Date.now(),
+      lastActiveAtServer: rtdbServerTimestamp(),
+      updatedAt: Date.now(),
+    });
+  } catch (e) {
+    // khong block login
+  }
 
-  const payload = {
-    uid,
-    rtId,
-    email: firebaseUser.email || "",
-    displayName: firebaseUser.displayName || "",
-    photoURL: firebaseUser.photoURL || "",
-    createdAt: now,
-    lastActiveAt: now,
-
-    // 6 chỉ số hành vi (realtime)
-    behavior: {
-      b1: 0,
-      b2: 0,
-      b3: 0,
-      b4: 0,
-      b5: 0,
-      b6: 0,
-    },
-
-    // 3 metrics realtime
-    metrics: {
-      fi: 0,
-      pi: 0,
-      piStar: 0,
-    },
-
-    // 4 chỉ số thời gian realtime
-    timers: {
-      t1: 0,
-      t2: 0,
-      t3: 0,
-      t4: 0,
-    },
-  };
-
-  await set(userRef, payload);
-  return payload;
+  return snap.val();
 }

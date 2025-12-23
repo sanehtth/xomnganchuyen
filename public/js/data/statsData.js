@@ -47,9 +47,3 @@ export function computeUserCounts(users) {
     admin: adminCount,
   };
 }
-
-// Backward-compatible helper (mot so ban cu import ensureRealtimeUser tu statsData.js)
-export async function ensureRealtimeUser() {
-  return true;
-}
-

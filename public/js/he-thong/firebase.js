@@ -1,5 +1,5 @@
-// js/he-thong/firebase.js
-// Khoi tao Firebase + Firestore + Realtime Database
+// public/js/he-thong/firebase.js
+// Khoi tao Firebase (Auth + Firestore + Realtime Database)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 
@@ -19,6 +19,8 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
+  writeBatch,
   collection,
   getDocs,
   query,
@@ -36,20 +38,22 @@ import {
   get,
   set,
   update,
-  push,
   onValue,
   serverTimestamp as rtdbServerTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// Cau hinh Firebase
+// Firebase config
+// TODO: neu sau nay ban doi project Firebase thi chi can doi doan nay
 const firebaseConfig = {
-  apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YspZKXY",
+  apiKey: "AIzaSyCsy8_u9ELGMiu-YyKsDYu1oU8YSpZKXXY",
   authDomain: "xomnganchuyen.firebaseapp.com",
   projectId: "xomnganchuyen",
   storageBucket: "xomnganchuyen.firebasestorage.app",
   messagingSenderId: "335661705640",
   appId: "1:335661705640:web:8bde062fae1fcb3c99559d",
-  measurementId: "G-21JSZ5G1EX",
+  measurementId: "G-21JSZG1EX",
+  // Quan trong: dung URL RTDB (co region) de tranh warning region
+  databaseURL: "https://xomnganchuyen-default-rtdb.asia-southeast1.firebasedatabase.app",
 };
 
 // Khoi tao
@@ -62,11 +66,8 @@ const googleProvider = new GoogleAuthProvider();
 // Firestore
 const db = getFirestore(app);
 
-// Realtime DB
+// Realtime Database
 const rtdb = getDatabase(app);
-
-// Alias de tranh nham ten bien
-const realtimeDb = rtdb;
 
 export {
   // core
@@ -85,6 +86,8 @@ export {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
+  writeBatch,
   collection,
   getDocs,
   query,
@@ -96,12 +99,10 @@ export {
 
   // realtime database
   rtdb,
-  realtimeDb,
   ref,
   get,
   set,
   update,
-  push,
   onValue,
   rtdbServerTimestamp,
 };

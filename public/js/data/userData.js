@@ -94,36 +94,6 @@ const DEFAULT_PROFILE = {
     flag: "NONE",
   },
 
-// =======================
-// Snapshot (S_*) - du lieu chot tren Firestore (de bao cao / truy van on dinh)
-// Giữ song song với fields cũ trong giai đoạn test để không vỡ UI.
-// =======================
-S_metrics: {
-  S_xp: 0,
-  S_coin: 0,
-  S_level: 1,
-},
-S_traits: {
-  S_competitiveness: 0,
-  S_creativity: 0,
-  S_perfectionism: 0,
-  S_playfulness: 0,
-  S_selfImprovement: 0,
-  S_sociability: 0,
-},
-S_behavior: {
-  S_FI: 0,
-  S_PI: 0,
-  S_PIStar: 0,
-},
-S_time: {
-  S_ttfImpactDays: null,
-  S_gvPiStar: null,
-  S_consistencyScore: null,
-  S_flag: "NONE",
-},
-
-
   // Counters cong hien (de giai thich vi sao co PI* / FI)
   contributionStats: {
     approvedCount: 0,
@@ -180,135 +150,80 @@ function buildBaseProfile(firebaseUser) {
 // - Neu chua co -> tao profile moi (merge DEFAULT + thong tin firebase)
 // - Neu co roi -> merge DEFAULT + data cu + cap nhat lastActiveAt
 // =======================
-
 export async function ensureUserDocument(firebaseUser) {
   if (!firebaseUser) return null;
 
   const uid = firebaseUser.uid;
-  const email = firebaseUser.email || "";
   const userRef = doc(db, "users", uid);
   const snap = await getDoc(userRef);
+   // ======Nếu email thuộc admin list -> luôn admin + approved
+    const isAdminEmail = ADMIN_EMAILS.includes(firebaseUser.email || "");
+    let patched = { ...data };
 
-  const isAdminEmail = ADMIN_EMAILS.includes(email);
-
-  // Helper: build patch S_* from existing fields (neu chua co)
-  const buildSnapshotPatch = (base) => {
-    const patch = {};
-
-    // S_metrics
-    if (!base.S_metrics) {
-      patch.S_metrics = {
-        S_xp: Number(base.xp ?? 0),
-        S_coin: Number(base.coin ?? 0),
-        S_level: Number(base.level ?? 1),
-      };
-    }
-
-    // S_traits
-    if (!base.S_traits) {
-      const t = base.traits || {};
-      patch.S_traits = {
-        S_competitiveness: Number(t.competitiveness ?? 0),
-        S_creativity: Number(t.creativity ?? 0),
-        S_perfectionism: Number(t.perfectionism ?? 0),
-        S_playfulness: Number(t.playfulness ?? 0),
-        S_selfImprovement: Number(t.selfImprovement ?? 0),
-        S_sociability: Number(t.sociability ?? 0),
-      };
-    }
-
-    // S_behavior
-    if (!base.S_behavior) {
-      const m = base.metrics || {};
-      patch.S_behavior = {
-        S_FI: Number(m.fi ?? 0),
-        S_PI: Number(m.pi ?? 0),
-        S_PIStar: Number(m.piStar ?? 0),
-      };
-    }
-
-    // S_time
-    if (!base.S_time) {
-      const tm = base.timeMetrics || {};
-      patch.S_time = {
-        S_ttfImpactDays: tm.ttfImpactDays ?? null,
-        S_gvPiStar: tm.gvPiStar ?? null,
-        S_consistencyScore: tm.consistencyScore ?? null,
-        S_flag: tm.flag || "NONE",
-      };
-    }
-
-    return patch;
-  };
-
-  // ====== CREATE
-  if (!snap.exists()) {
-    const base = buildBaseProfile(firebaseUser);
-
-    // admin override
     if (isAdminEmail) {
-      base.role = "admin";
-      base.status = "approved";
+      patched.role = "admin";
+      patched.status = "approved";
     }
 
-    // snapshot S_* khoi tao
-    const snapshotPatch = buildSnapshotPatch(base);
+    await updateDoc(userRef, {
+      ...patched,
+      lastActiveAt: serverTimestamp(),
+    });
 
-    const toWrite = {
-      ...base,
-      ...snapshotPatch,
+    return {
+      uid,
+      ...DEFAULT_PROFILE,
+      ...patched,
     };
-
-    await setDoc(userRef, toWrite, { merge: true });
-    return toWrite;
-  }
-
-  // ====== UPDATE / PATCH
-  const existing = snap.data() || {};
-
-  const patched = {
-    // merge DEFAULT -> existing -> computed identity fields
+  
+// ====== CHƯA CÓ PROFILE -> TẠO MỚI ======
+    const baseProfile = {
     ...DEFAULT_PROFILE,
-    ...existing,
     uid,
-    email: existing.email || email,
-    displayName: existing.displayName || firebaseUser.displayName || email || "User",
-    photoUrl: existing.photoUrl || firebaseUser.photoURL || "",
+    id: generateXncId(),
+    email: firebaseUser.email || "",
+    displayName: firebaseUser.displayName || firebaseUser.email || "User",
+    photoUrl: firebaseUser.photoURL || "",
+    createdAt: serverTimestamp(),
     lastActiveAt: serverTimestamp(),
   };
 
-  // đảm bảo id/refCode (cho user cũ)
-  if (!patched.id) patched.id = generateXncId();
-  if (!patched.refCode) patched.refCode = generateRefCode(uid || email);
-
-  // admin override
   if (isAdminEmail) {
-    patched.role = "admin";
-    patched.status = "approved";
+    baseProfile.role = "admin";
+    baseProfile.status = "approved";
   }
 
-  // backfill snapshot S_*
-  const snapshotPatch = buildSnapshotPatch(patched);
+  await setDoc(userRef, baseProfile);
+  return baseProfile;
 
-  // Chỉ update các trường cần thiết (không ghi đè toàn bộ)
+//====== het phan xet email admin====
+  if (!snap.exists()) {
+    const baseProfile = buildBaseProfile(firebaseUser);
+    await setDoc(userRef, baseProfile);
+    return baseProfile;
+  }
+
+  const current = snap.data() || {};
+
+  const merged = {
+    ...DEFAULT_PROFILE, // schema mac dinh
+    ...current, // du lieu dang co trong DB
+    uid,
+    email: firebaseUser.email || current.email || "",
+    displayName:
+      firebaseUser.displayName || current.displayName || firebaseUser.email || "User",
+    photoUrl: firebaseUser.photoURL || current.photoUrl || "",
+  };
+
   await updateDoc(userRef, {
-    uid: patched.uid,
-    email: patched.email,
-    displayName: patched.displayName,
-    photoUrl: patched.photoUrl,
-    role: patched.role,
-    status: patched.status,
-    id: patched.id,
-    refCode: patched.refCode,
-    lastActiveAt: patched.lastActiveAt,
-    ...snapshotPatch,
+    lastActiveAt: serverTimestamp(),
   });
 
-  return { ...patched, ...snapshotPatch };
+  return merged;
 }
 
 // =======================
-// getUserDocument
+// Doc 1 user (theo uid)
 // =======================
 export async function getUserDocument(uid) {
   if (!uid) return null;
