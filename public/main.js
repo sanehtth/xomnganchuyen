@@ -109,7 +109,7 @@ subscribeAuthState(async (firebaseUser, profile) => {
     if (profile.role === "admin") {
       navAdmin.style.display = "inline-block";
       if (viewAdmin && adminContent) {
-        await loadAndRenderAdmin(adminContent, firebaseUser);
+        await renderAdminView(adminContent, firebaseUser);
       }
     } else {
       navAdmin.style.display = "none";
