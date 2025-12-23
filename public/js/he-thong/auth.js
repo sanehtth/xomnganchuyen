@@ -1,84 +1,72 @@
-// js/he-thong/auth.js
-// Quản lý đăng nhập / đăng xuất + trạng thái auth toàn cục
+import { auth, firestore, realtimeDb } from "./firebase.js";
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-import {
-  auth,
-  googleProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-} from "./firebase.js";
+const provider = new GoogleAuthProvider();
 
-import {
-  getUserDocument, // CHỈ ĐỌC
-} from "../data/userData.js";
-import { ensureRealtimeUser } from "../data/realtimeUser.js"; // HÀM TẠO USER REALTIME (đã có / hoặc bạn sẽ có)
+/* =========================
+   FIRESTORE USER
+========================= */
+async function ensureFirestoreUser(user) {
+  const refDoc = doc(firestore, "users", user.uid);
+  const snap = await getDoc(refDoc);
 
-// Trạng thái auth toàn cục
-export const authState = {
-  firebaseUser: null,
-  profile: null, // chỉ là Firestore profile (nếu có)
-  loading: true,
-};
-
-// =========================
-// ĐĂNG NHẬP GOOGLE
-// =========================
-export async function loginWithGoogle() {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const firebaseUser = result.user;
-
-    // 1️⃣ CHỈ TẠO REALTIME USER (guest)
-    await ensureRealtimeUser(firebaseUser);
-
-    // 2️⃣ CHỈ ĐỌC Firestore (nếu đã là member)
-    const profile = await getUserDocument(firebaseUser.uid);
-
-    authState.firebaseUser = firebaseUser;
-    authState.profile = profile; // null nếu chưa được duyệt
-    authState.loading = false;
-
-    return { firebaseUser, profile };
-  } catch (err) {
-    console.error("Lỗi đăng nhập:", err);
-    throw err;
+  if (!snap.exists()) {
+    await setDoc(refDoc, {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || "",
+      role: "guest",
+      status: "normal",
+      joinCode: "",
+      level: 1,
+      createdAt: serverTimestamp(),
+      lastActiveAt: serverTimestamp(),
+      S_metrics: { S_xp: 0, S_coin: 0, S_level: 1 },
+      S_behavior: {},
+      S_time: {}
+    });
   }
 }
 
-// =========================
-// ĐĂNG XUẤT
-// =========================
-export async function logout() {
-  await signOut(auth);
-  authState.firebaseUser = null;
-  authState.profile = null;
-  authState.loading = false;
+/* =========================
+   REALTIME USER
+========================= */
+async function ensureRealtimeUser(user) {
+  const rtRef = ref(realtimeDb, `users/${user.uid}`);
+  const snap = await get(rtRef);
+
+  if (!snap.exists()) {
+    await set(rtRef, {
+      uid: user.uid,
+      createdAt: Date.now(),
+      behavior: {},
+      metrics: {},
+      time: {}
+    });
+  }
 }
 
-// =========================
-// LẮNG NGHE AUTH
-// =========================
-export function subscribeAuthState(callback) {
-  authState.loading = true;
+/* =========================
+   LOGIN GOOGLE
+========================= */
+export async function loginWithGoogle() {
+  const result = await signInWithPopup(auth, provider);
+  const user = result.user;
 
-  return onAuthStateChanged(auth, async (firebaseUser) => {
-    if (!firebaseUser) {
-      authState.firebaseUser = null;
-      authState.profile = null;
-      authState.loading = false;
-      callback(null, null);
-      return;
-    }
+  await ensureFirestoreUser(user);
+  await ensureRealtimeUser(user);
+}
 
-    authState.firebaseUser = firebaseUser;
-
-    // ❌ TUYỆT ĐỐI KHÔNG ensureUserDocument Ở ĐÂY
-    const profile = await getUserDocument(firebaseUser.uid);
-
-    authState.profile = profile; // null = guest
-    authState.loading = false;
-
-    callback(firebaseUser, profile);
+/* =========================
+   AUTH LISTENER
+========================= */
+export function initAuth(onReady) {
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) return;
+    await ensureFirestoreUser(user);
+    await ensureRealtimeUser(user);
+    onReady(user);
   });
 }
