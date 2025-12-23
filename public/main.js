@@ -1,103 +1,184 @@
-// public/main.js
-// Entry point SPA: routing UI + Auth
-import { subscribeAuthState, loginWithGoogle, logout } from "./js/he-thong/auth.js";
-import { initThemeUI } from "./js/ung-dung/ui-theme.js";
-import { renderDashboardView } from "./js/ung-dung/ui-dashboard.js";
-import { renderJoinView } from "./js/ung-dung/ui-join.js";
-import { renderAdminView } from "./js/ung-dung/ui-admin.js";
+// main.js
+// Diem noi giua auth + UI chinh
 
-const $ = (id) => document.getElementById(id);
+import {
+  subscribeAuthState,
+  loginWithGoogle,
+  logout,
+} from "./js/he-thong/auth.js";
 
-const state = {
-  user: null,
-  profile: null,
-};
+import { renderDashboard } from "./js/ung-dung/ui-dashboard.js";
+import { renderJoinGate } from "./js/ung-dung/ui-join.js";
+import { loadAndRenderAdmin } from "./js/ung-dung/ui-admin.js";
+import { initTheme } from "./js/ung-dung/ui-theme.js";
 
-function setNavAuthUI(isSignedIn) {
-  const btnLogin = $("login-google-btn");
-  const btnLogout = $("logout-btn");
-  if (btnLogin) btnLogin.style.display = isSignedIn ? "none" : "";
-  if (btnLogout) btnLogout.style.display = isSignedIn ? "" : "none";
+// =====================================
+// DOM elements
+// =====================================
+
+const loginBtn = document.getElementById("login-btn");
+const logoutBtn = document.getElementById("logout-btn");
+const statusBar = document.getElementById("status-bar");
+
+const viewDashboard = document.getElementById("view-dashboard");
+const viewJoin = document.getElementById("view-join");
+const viewAdmin = document.getElementById("view-admin");
+
+const dashboardContent = document.getElementById("dashboard-content");
+const joinContent = document.getElementById("join-content");
+const adminContent = document.getElementById("admin-content");
+
+const navDashboard = document.getElementById("nav-dashboard");
+const navJoin = document.getElementById("nav-join");
+const navAdmin = document.getElementById("nav-admin");
+
+// Theme toggle
+const themeToggleBtn = document.getElementById("theme-toggle-btn");
+initTheme(themeToggleBtn);
+
+// Trang landing khi chua dang nhap
+function renderLoggedOutLanding() {
+  if (!dashboardContent) return;
+  dashboardContent.innerHTML = `
+    <div class="card">
+      <h2>Fanpage Lab</h2>
+      <p>Ban chua dang nhap. Hay bam nut "Dang nhap voi Google"
+      o tren de vao he thong.</p>
+    </div>
+  `;
+  if (joinContent) joinContent.innerHTML = "";
+  if (adminContent) adminContent.innerHTML = "";
+  if (statusBar) statusBar.textContent = "Ban chua dang nhap.";
 }
 
-function setNavUser(profile) {
-  const nameEl = $("nav-username");
-  if (nameEl) nameEl.textContent = profile?.displayName || "";
+// Helper: chuyen tab
+function showView(target) {
+  const allViews = [viewDashboard, viewJoin, viewAdmin];
+  allViews.forEach((v) => {
+    if (!v) return;
+    v.style.display = v === target ? "block" : "none";
+  });
 }
 
-function setAdminLink(profile) {
-  const navAdmin = $("nav-admin");
-  if (!navAdmin) return;
-  const isAdmin = (profile?.role || "").toLowerCase() === "admin";
-  navAdmin.style.display = isAdmin ? "" : "none";
-}
+// =====================================
+// Xu ly Auth
+// =====================================
 
-function getRoute() {
-  const h = (location.hash || "#/dashboard").trim();
-  if (h.startsWith("#/admin")) return "admin";
-  if (h.startsWith("#/join")) return "join";
-  return "dashboard";
-}
+let currentUser = null;
+let currentProfile = null;
 
-function showView(route) {
-  const vDash = $("view-dashboard");
-  const vJoin = $("view-join");
-  const vAdmin = $("view-admin");
-  if (vDash) vDash.style.display = route === "dashboard" ? "" : "none";
-  if (vJoin) vJoin.style.display = route === "join" ? "" : "none";
-  if (vAdmin) vAdmin.style.display = route === "admin" ? "" : "none";
+subscribeAuthState(async (firebaseUser, profile) => {
+  currentUser = firebaseUser;
+  currentProfile = profile;
 
-  if (route === "dashboard") renderDashboardView({ container: vDash, firebaseUser: state.user, profile: state.profile });
-  if (route === "join") renderJoinView({ container: vJoin, firebaseUser: state.user, profile: state.profile });
-  if (route === "admin") renderAdminView({ container: vAdmin, firebaseUser: state.user, profile: state.profile });
-}
+  if (!firebaseUser || !profile) {
+    // Chua dang nhap -> xoa noi dung nhay cam
+    renderLoggedOutLanding();
+    if (navAdmin) navAdmin.style.display = "none";
+    if (navJoin) navJoin.style.display = "none";
+    if (logoutBtn) logoutBtn.style.display = "none";
+    if (loginBtn) loginBtn.style.display = "inline-block";
+    showView(viewDashboard);
+    return;
+  }
 
-function bindNav() {
-  $("nav-dashboard")?.addEventListener("click", (e) => { e.preventDefault(); location.hash = "#/dashboard"; });
-  $("nav-join")?.addEventListener("click", (e) => { e.preventDefault(); location.hash = "#/join"; });
-  $("nav-admin")?.addEventListener("click", (e) => { e.preventDefault(); location.hash = "#/admin"; });
+  if (statusBar) {
+    statusBar.textContent = `Dang nhap thanh cong. Xin chao, ${
+      profile.displayName || firebaseUser.email
+    }.`;
+  }
 
-  window.addEventListener("hashchange", () => showView(getRoute()));
-}
+  // Nut login / logout
+  if (loginBtn) loginBtn.style.display = "none";
+  if (logoutBtn) logoutBtn.style.display = "inline-block";
 
-function bindAuthButtons() {
-  $("login-google-btn")?.addEventListener("click", async () => {
+  // Dashboard luon co
+  if (dashboardContent) {
+    renderDashboard(dashboardContent, firebaseUser, profile);
+    showView(viewDashboard);
+  }
+
+  // Tab Cong thanh vien
+  if (joinContent && navJoin) {
+    renderJoinGate(joinContent, firebaseUser, profile);
+    navJoin.style.display = "inline-block";
+  }
+
+  // Tab Admin chi hien neu role === 'admin'
+  if (navAdmin) {
+    if (profile.role === "admin") {
+      navAdmin.style.display = "inline-block";
+      if (viewAdmin && adminContent) {
+        await loadAndRenderAdmin(adminContent, firebaseUser);
+      }
+    } else {
+      navAdmin.style.display = "none";
+      if (adminContent) {
+        adminContent.innerHTML = "";
+      }
+    }
+  }
+});
+
+// =====================================
+// Event listeners
+// =====================================
+
+if (loginBtn) {
+  loginBtn.addEventListener("click", async () => {
     try {
+      loginBtn.disabled = true;
       await loginWithGoogle();
     } catch (err) {
       console.error(err);
-      alert("Đăng nhập thất bại.");
+      alert("Dang nhap that bai, vui long thu lai.");
+    } finally {
+      loginBtn.disabled = false;
     }
   });
+}
 
-  $("logout-btn")?.addEventListener("click", async () => {
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
     try {
+      logoutBtn.disabled = true;
       await logout();
+
+      // Sau khi logout -> ve landing an toan
+      renderLoggedOutLanding();
+      if (navAdmin) navAdmin.style.display = "none";
+      if (navJoin) navJoin.style.display = "none";
+      if (loginBtn) loginBtn.style.display = "inline-block";
+      showView(viewDashboard);
     } catch (err) {
       console.error(err);
+    } finally {
+      logoutBtn.disabled = false;
     }
   });
 }
 
-function bootstrap() {
-  initThemeUI();
-  bindNav();
-  bindAuthButtons();
-
-  // Auth subscription
-  subscribeAuthState((firebaseUser, profile) => {
-    state.user = firebaseUser;
-    state.profile = profile;
-
-    setNavAuthUI(!!firebaseUser);
-    setNavUser(profile);
-    setAdminLink(profile);
-
-    showView(getRoute());
+// Chuyen tab
+if (navDashboard) {
+  navDashboard.addEventListener("click", () => {
+    showView(viewDashboard);
   });
-
-  // initial
-  showView(getRoute());
 }
 
-bootstrap();
+if (navJoin) {
+  navJoin.addEventListener("click", () => {
+    showView(viewJoin);
+  });
+}
+
+if (navAdmin) {
+  navAdmin.addEventListener("click", () => {
+    showView(viewAdmin);
+    if (currentUser && adminContent) {
+      loadAndRenderAdmin(adminContent, currentUser);
+    }
+  });
+}
+
+// Khoi dong lan dau
+renderLoggedOutLanding();
