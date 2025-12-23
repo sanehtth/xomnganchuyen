@@ -12,7 +12,7 @@ import {
   updateDoc,
 } from "../he-thong/firebase.js";
 
-import { generateRefCode } from "./userData.js";
+import { generateXncId } from "./userData.js";
 
 // =======================
 // Lay danh sach user cho Admin Panel
@@ -67,12 +67,14 @@ export async function approveUser(uid, action, newRole) {
 
     // Neu user chua co joinCode -> sinh moi
     if (!data.joinCode || String(data.joinCode).trim() === "") {
-      const seed = uid || data.email || "";
-      patch.joinCode = generateXncId(seed);
+      patch.joinCode = generateXncId();
     }
 
     await updateDoc(userRef, patch);
-  } else if (action === "reject") {
+    return;
+  }
+
+  if (action === "reject") {
     await updateDoc(userRef, {
       status: "rejected",
     });
