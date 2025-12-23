@@ -1,90 +1,102 @@
-import { auth, db, rtdb } from "./firebase.js";
+// js/he-thong/auth.js
+// Quản lý đăng nhập / đăng xuất + trạng thái auth toàn cục
 
 import {
-  onAuthStateChanged,
+  auth,
+  googleProvider,
   signInWithPopup,
-  GoogleAuthProvider
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  signOut,
+  onAuthStateChanged,
+} from "./firebase.js";
 
 import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  ensureUserDocument,
+  getUserDocument,
+} from "../data/userData.js";
 
-import {
-  ref,
-  get,
-  set
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+// Trạng thái auth toàn cục để các module khác có thể dùng
+export const authState = {
+  firebaseUser: null,
+  profile: null,
+  loading: true,
+};
 
-const provider = new GoogleAuthProvider();
-
-/* =====================
-   FIRESTORE USER
-===================== */
-async function ensureFirestoreUser(user) {
-  const userRef = doc(db, "users", user.uid);
-  const snap = await getDoc(userRef);
-
-  if (!snap.exists()) {
-    await setDoc(userRef, {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName || "",
-      role: "guest",
-      status: "normal",
-      joinCode: "",
-      level: 1,
-      createdAt: serverTimestamp(),
-      lastActiveAt: serverTimestamp(),
-      S_metrics: { S_xp: 0, S_coin: 0, S_level: 1 },
-      S_behavior: {},
-      S_time: {}
-    });
-  }
-}
-
-/* =====================
-   REALTIME USER
-===================== */
-async function ensureRealtimeUser(user) {
-  const userRef = ref(rtdb, `users/${user.uid}`);
-  const snap = await get(userRef);
-
-  if (!snap.exists()) {
-    await set(userRef, {
-      uid: user.uid,
-      createdAt: Date.now(),
-      behavior: {},
-      metrics: {},
-      time: {}
-    });
-  }
-}
-
-/* =====================
-   LOGIN
-===================== */
+// Đăng nhập với Google
 export async function loginWithGoogle() {
-  const result = await signInWithPopup(auth, provider);
-  const user = result.user;
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const firebaseUser = result.user;
 
-  await ensureFirestoreUser(user);
-  await ensureRealtimeUser(user);
+    // Đảm bảo có hồ sơ trong Firestore
+    const profile = await ensureUserDocument(firebaseUser);
+
+    authState.firebaseUser = firebaseUser;
+    authState.profile = profile;
+    authState.loading = false;
+
+    return { firebaseUser, profile };
+  } catch (err) {
+    console.error("Lỗi đăng nhập:", err);
+    throw err;
+  }
 }
 
-/* =====================
-   AUTH LISTENER
-===================== */
-export function initAuth(onReady) {
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) return;
+// Đăng xuất
+export async function logout() {
+  try {
+    await signOut(auth);
+    authState.firebaseUser = null;
+    authState.profile = null;
+    authState.loading = false;
+  } catch (err) {
+    console.error("Lỗi đăng xuất:", err);
+    throw err;
+  }
+}
 
-    await ensureFirestoreUser(user);
-    await ensureRealtimeUser(user);
+// Lắng nghe thay đổi auth và load hồ sơ user
+export function subscribeAuthState(callback) {
+  authState.loading = true;
 
-    onReady(user);
+  return onAuthStateChanged(auth, async (firebaseUser) => {
+    try {
+      if (!firebaseUser) {
+        authState.firebaseUser = null;
+        authState.profile = null;
+        authState.loading = false;
+        callback(null, null);
+        return;
+      }
+
+      authState.firebaseUser = firebaseUser;
+
+      // Lấy hồ sơ từ Firestore (đã có ensureUserDocument ở lần login đầu)
+      let profile = await getUserDocument(firebaseUser.uid);
+      if (!profile) {
+        profile = await ensureUserDocument(firebaseUser);
+      }
+
+      authState.profile = profile;
+      authState.loading = false;
+
+      callback(firebaseUser, profile);
+    } catch (err) {
+      console.error("Lỗi khi xử lý onAuthStateChanged:", err);
+      authState.loading = false;
+      callback(firebaseUser || null, authState.profile || null);
+    }
   });
 }
+
+// =============================
+// Compatibility layer
+// =============================
+// Một số main.js/phiên bản cũ dùng initAuth(...) thay vì subscribeAuthState(...)
+export function initAuth(callback) {
+  return subscribeAuthState((firebaseUser, profile) => {
+    if (typeof callback === "function") callback(firebaseUser, profile);
+  });
+}
+
+// Alias nếu có chỗ import logoutUser
+export const logoutUser = logout;

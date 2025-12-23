@@ -1,9 +1,10 @@
-// public/js/he-thong/firebase.js
+// js/he-thong/firebase.js
 // Khoi tao Firebase + Firestore + Realtime Database
 // Chi lam nhiem vu he thong, khong viet logic giao dien o day
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 
+// ===== Auth =====
 import {
   getAuth,
   GoogleAuthProvider,
@@ -12,6 +13,7 @@ import {
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+// ===== Firestore =====
 import {
   getFirestore,
   doc,
@@ -22,17 +24,20 @@ import {
   getDocs,
   query,
   orderBy,
-  serverTimestamp, // Firestore serverTimestamp
+  serverTimestamp, // Firestore timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ✅ Realtime Database imports
+// ===== Realtime Database =====
 import {
   getDatabase,
   ref,
   get,
   set,
   update,
-  serverTimestamp as rtdbServerTimestamp, // RTDB serverTimestamp (alias de tranh trung ten)
+  push,
+  onValue,
+  off,
+  serverTimestamp as rtdbServerTimestamp, // RTDB timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // Cau hinh Firebase
@@ -40,6 +45,8 @@ import {
 const firebaseConfig = {
   apiKey: "AIzaSyCsy8_u9ELGMiur-YyKsDYu1oU8YSpZKXY",
   authDomain: "xomnganchuyen.firebaseapp.com",
+  // Quan trong: RTDB cua project dang o khu vuc asia-southeast1
+  databaseURL: "https://xomnganchuyen-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "xomnganchuyen",
   storageBucket: "xomnganchuyen.firebasestorage.app",
   messagingSenderId: "335661705640",
@@ -57,7 +64,7 @@ const googleProvider = new GoogleAuthProvider();
 // Firestore
 const db = getFirestore(app);
 
-// ✅ Realtime Database
+// Realtime Database
 const rtdb = getDatabase(app);
 
 // Export nhung gi can cho cac file khac
@@ -84,11 +91,14 @@ export {
   orderBy,
   serverTimestamp,
 
-  // realtime
+  // realtime db
   rtdb,
   ref,
   get,
   set,
   update,
+  push,
+  onValue,
+  off,
   rtdbServerTimestamp,
 };
