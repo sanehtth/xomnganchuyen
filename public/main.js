@@ -175,7 +175,7 @@ if (navAdmin) {
   navAdmin.addEventListener("click", () => {
     showView(viewAdmin);
     if (currentUser && adminContent) {
-      loadAndRenderAdmin(adminContent, currentUser);
+      renderAdminView(adminContent, currentUser);
     }
   });
 }
